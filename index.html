@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đường Đua Tự Nộp COD - Dashboard Vận Hành Nhân Viên Phát Tá</title>
+    <meta name="description" content="Hệ thống Dashboard phân tích, thi đua tỷ lệ tự nộp COD của Nhân viên Phát tá (NVPTTT) trên 15 vùng và gợi ý ưu tiên cải thiện bưu cục thông minh.">
+    
+    <!-- Professional Icons & Styling Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- SheetJS (Excel Parser) & Chart.js (Data Visualizations) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Dashboard Top Header -->
+        <header>
+            <div class="brand-section">
+                <div class="logo-container">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <div>
+                    <h1>ĐƯỜNG ĐUA TỰ NỘP COD</h1>
+                    <p>Hệ thống Giám sát & Đề xuất Ưu tiên Cải thiện Vận hành - Chiến dịch NVPTTT</p>
+                </div>
+            </div>
+            <div class="control-panel">
+                <button id="download-template-btn" class="btn btn-primary" title="Tải xuống tệp Excel dữ liệu mẫu có cấu trúc chuẩn">
+                    <i class="fas fa-file-excel"></i> Tải Excel Mẫu
+                </button>
+                <button id="reset-btn" class="btn btn-danger" title="Khôi phục lại dữ liệu giả lập ban đầu của hệ thống">
+                    <i class="fas fa-redo"></i> Reset Dữ Liệu
+                </button>
+            </div>
+        </header>
+
+        <!-- Informative Guide Alert -->
+        <div class="guide-banner">
+            <div class="guide-text">
+                <i class="fas fa-info-circle" style="color: var(--color-cyan); margin-right: 0.5rem;"></i>
+                Chào mừng bạn đến với <strong>Đường Đua Tự Nộp COD</strong>! Hệ thống đã được tích hợp sẵn <strong>dữ liệu giả lập 14 ngày của 15 vùng</strong>. 
+                Bạn có thể click trực tiếp vào từng Vùng trên đường đua để xem chi tiết bưu cục trực thuộc, hoặc tải tệp Excel mẫu để cập nhật dữ liệu vận hành thực tế của riêng bạn!
+            </div>
+        </div>
+
+        <!-- 4 Widget Overview Cards -->
+        <section class="stats-grid" aria-label="Thống kê tổng quan toàn quốc">
+            <div class="glass-card stat-card cyan" id="stat-national-rate">
+                <div class="stat-info">
+                    <h3>Tỷ Lệ Tự Nộp COD</h3>
+                    <div id="national-rate" class="stat-value">0%</div>
+                    <div id="national-trend-container" class="stat-sub">
+                        <i id="national-trend-icon" class="fas fa-arrow-up"></i>
+                        <span id="national-trend-val">0%</span> so với hôm qua
+                    </div>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-percentage"></i>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card green" id="stat-total-cod">
+                <div class="stat-info">
+                    <h3>Tổng Sản Lượng COD</h3>
+                    <div id="total-cod" class="stat-value">0M</div>
+                    <div class="stat-sub">Đơn vị: Triệu VND</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-wallet"></i>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card purple" id="stat-total-staff">
+                <div class="stat-info">
+                    <h3>Tổng Nhân Sự NVPTTT</h3>
+                    <div id="total-staff" class="stat-value">0</div>
+                    <div class="stat-sub">Đang hoạt động trên 15 vùng</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card pink" id="stat-top-region">
+                <div class="stat-info">
+                    <h3>Vùng Dẫn Đầu Cuộc Đua</h3>
+                    <div id="top-region-name" class="stat-value" style="font-size: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.5rem;">Đang tải...</div>
+                    <div class="stat-sub">Tỷ lệ: <span id="top-region-rate" style="font-weight: 700; color: var(--color-pink);">0%</span></div>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid Layout -->
+        <main class="dashboard-grid">
+            <!-- Left Side: Leaderboard Race Track -->
+            <section class="glass-card" aria-label="Bảng xếp hạng đường đua 15 vùng">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-flag-checkered"></i>
+                        <h2>BẢNG XẾP HẠNG ĐƯỜNG ĐUA (15 VÙNG)</h2>
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); background: rgba(255,255,255,0.05); padding: 0.25rem 0.5rem; border-radius: 4px;">Tỷ lệ tự nộp (%)</span>
+                </div>
+                <!-- The dynamic leaderboard container -->
+                <div id="race-container" class="race-container">
+                    <!-- Dynamic Items will be rendered here by app.js -->
+                </div>
+            </section>
+
+            <!-- Right Side: Daily Charts & Excel Upload -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <!-- Chart Comparison Card -->
+                <section class="glass-card" aria-label="Biểu đồ xu hướng ngày">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-chart-line"></i>
+                            <h2>XU HƯỚNG TỶ LỆ THEO NGÀY</h2>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                    <!-- Region select list for comparisons -->
+                    <div style="padding: 1rem 1.5rem 1.5rem 1.5rem; border-top: 1px solid var(--border-color);">
+                        <h4 style="font-size: 0.8125rem; color: var(--text-primary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-filter" style="color: var(--color-purple);"></i> So Sánh Xu Hướng Các Vùng:
+                        </h4>
+                        <div id="compare-select-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.35rem; max-height: 120px; overflow-y: auto; padding-right: 0.5rem;">
+                            <!-- Checkboxes rendered dynamically by app.js -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Excel Drag and Drop Importer Card -->
+                <section class="glass-card" aria-label="Tải lên báo cáo dữ liệu">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <h2>CẬP NHẬT BÁO CÁO MỚI</h2>
+                        </div>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div id="drop-zone" class="upload-zone" title="Kéo thả tệp Excel báo cáo của bạn tại đây để cập nhật hệ thống">
+                            <i class="fas fa-file-excel"></i>
+                            <p>Kéo và thả file Excel hoặc CSV vào đây</p>
+                            <span>Hoặc click trực tiếp để chọn file từ máy tính</span>
+                            <input type="file" id="excel-file-input" style="display: none;" accept=".xlsx, .xls, .csv">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Full Width Bottom Section: Recommender Engine for Action Priorities -->
+            <section class="priority-section" aria-label="Danh sách bưu cục ưu tiên cải thiện">
+                <!-- Smart priority card -->
+                <div class="glass-card recommender-card" style="grid-column: span 2;">
+                    <div class="card-header" style="border-bottom: none; padding: 0.5rem 0 1rem 0;">
+                        <div class="card-title">
+                            <i class="fas fa-brain" style="color: var(--color-pink);"></i>
+                            <h2>TRÌNH GỢI Ý ƯU TIÊN HÀNH ĐỘNG (TOÀN QUỐC)</h2>
+                        </div>
+                    </div>
+                    <p class="recommender-description">
+                        Để nâng tỷ lệ tự nộp COD nhanh nhất, hệ thống tự động tính toán <strong>Chỉ Số Ưu Tiên Cải Thiện (IPI)</strong> của tất cả các bưu cục trên toàn quốc. 
+                        Thuật toán ưu tiên các bưu cục có <strong>Sản lượng COD lớn nhưng tỷ lệ tự nộp đang thấp</strong>, giúp người quản lý tập trung tài nguyên vào đúng "điểm nghẽn" có dư địa cải thiện cao nhất.
+                    </p>
+                    
+                    <div class="priority-table-container">
+                        <table class="priority-table">
+                            <thead>
+                                <tr>
+                                    <th>Bưu Cục / Vùng</th>
+                                    <th style="text-align: center;">Nhân Sự (NV)</th>
+                                    <th style="text-align: right;">Tổng COD</th>
+                                    <th style="text-align: right;">Tỷ Lệ Tự Nộp</th>
+                                    <th style="text-align: right;">COD Chưa Tự Nộp</th>
+                                    <th style="text-align: center;">Mức Độ Ưu Tiên</th>
+                                </tr>
+                            </thead>
+                            <tbody id="priority-table-body">
+                                <!-- Top priority post offices will be rendered here dynamically by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Detailed Drawer Modal (Regional Deep-Dive Drawer Panel) -->
+        <div id="region-drawer" class="drawer-overlay" aria-hidden="true" role="dialog">
+            <div class="drawer-content">
+                <div class="drawer-header">
+                    <div class="drawer-title-group">
+                        <h2 id="drawer-region-name">Tên Vùng Deep-Dive</h2>
+                        <p>Phân tích chi tiết bưu cục & hiệu suất tự nộp COD</p>
+                    </div>
+                    <button id="close-drawer-btn" class="drawer-close" aria-label="Đóng cửa sổ phân tích chi tiết">&times;</button>
+                </div>
+
+                <!-- Basic statistics cards for region -->
+                <div class="mini-stats-grid">
+                    <div class="mini-stat-card">
+                        <div class="mini-stat-label">Tỷ Lệ Tự Nộp</div>
+                        <div id="drawer-stat-rate" class="mini-stat-value" style="color: var(--color-cyan);">0%</div>
+                    </div>
+                    <div class="mini-stat-card">
+                        <div class="mini-stat-label">Tổng COD Vùng</div>
+                        <div id="drawer-stat-cod" class="mini-stat-value">0M</div>
+                    </div>
+                    <div class="mini-stat-card" style="grid-column: span 2;">
+                        <div class="mini-stat-label">Nhân sự Đang Hoạt Động</div>
+                        <div id="drawer-stat-staff" class="mini-stat-value" style="color: var(--color-purple);">0 NV</div>
+                    </div>
+                </div>
+
+                <!-- Underperforming notification alarm inside drawer -->
+                <div id="drawer-warning-box" class="guide-banner" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); display: none;">
+                    <div id="drawer-warning-text" class="guide-text" style="color: #f87171;">
+                        <!-- Alert content goes here dynamically -->
+                    </div>
+                </div>
+
+                <!-- Post Offices Performance Comparison Chart inside drawer -->
+                <div class="drawer-section">
+                    <h3 class="drawer-section-title">SO SÁNH HIỆU SUẤT CÁC BƯU CỤC</h3>
+                    <div style="height: 180px; position: relative; margin-top: 1rem;">
+                        <canvas id="drawerRegionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Action Plan: Post Offices within region prioritized by IPI -->
+                <div class="drawer-section">
+                    <h3 class="drawer-section-title">DANH SÁCH BƯU CỤC CẦN HÀNH ĐỘNG</h3>
+                    <div class="priority-table-container" style="margin-top: 1rem;">
+                        <table class="priority-table" style="font-size: 0.8125rem;">
+                            <thead>
+                                <tr>
+                                    <th>Tên Bưu Cục</th>
+                                    <th style="text-align: right;">Sản Lượng</th>
+                                    <th style="text-align: right;">Tỷ Lệ</th>
+                                    <th style="text-align: center;">Ưu Tiên</th>
+                                </tr>
+                            </thead>
+                            <tbody id="drawer-buucuc-table-body">
+                                <!-- Dynamic rows of post offices ordered by priority -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Footer -->
+        <footer>
+            <p>Hệ thống được phát triển hỗ trợ tự động hóa vận hành logistics. Xây dựng và kiểm tra bởi <a href="#">Antigravity AI Platform</a>.</p>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Phiên bản 1.0.0 &copy; 2026. Tất cả các quyền được bảo lưu.</p>
+        </footer>
+    </div>
+
+    <!-- Core Logic Connection -->
+    <script src="app.js"></script>
+</body>
+</html>
