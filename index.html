@@ -63,7 +63,7 @@
                 </div>
             </div>
 
-            <div class="glass-card stat-card green" id="stat-total-cod">
+            <div class="glass-card stat-card green" id="stat-total-cod" style="display: none;">
                 <div class="stat-info">
                     <h3>Tổng Sản Lượng COD</h3>
                     <div id="total-cod" class="stat-value">0M</div>
@@ -168,14 +168,37 @@
                             <thead>
                                 <tr>
                                     <th>Bưu Cục / Vùng</th>
-                                    <th style="text-align: right;">Tổng COD</th>
                                     <th style="text-align: right;">Tỷ Lệ Tự Nộp</th>
-                                    <th style="text-align: right;">COD Chưa Tự Nộp</th>
                                     <th style="text-align: center;">Mức Độ Ưu Tiên</th>
                                 </tr>
                             </thead>
                             <tbody id="priority-table-body">
                                 <!-- Top priority post offices will be rendered here dynamically by app.js -->
+                            </tbody>
+                        </table>
+                </div>
+
+                <!-- Bảng xu hướng tỷ lệ tự nộp các vùng theo ngày -->
+                <div class="glass-card recommender-card" style="grid-column: span 2; margin-top: 1.5rem;">
+                    <div class="card-header" style="border-bottom: none; padding: 0.5rem 0 1rem 0; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="card-title">
+                            <i class="fas fa-table" style="color: var(--color-cyan);"></i>
+                            <h2>BẢNG XU HƯỚNG TỶ LỆ TỰ NỘP (%) THEO NGÀY</h2>
+                        </div>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); background: rgba(255,255,255,0.05); padding: 0.25rem 0.5rem; border-radius: 4px;">Tất cả các vùng & Toàn quốc</span>
+                    </div>
+                    <p class="recommender-description" style="margin-bottom: 1.5rem;">
+                        Bảng thống kê tỷ lệ tự nộp COD (%) của từng vùng qua các ngày. Các vùng có tỷ lệ <strong style="color: var(--color-pink);">dưới 60%</strong> được tô màu đỏ để dễ dàng nhận diện và theo dõi xu hướng.
+                    </p>
+                    <div class="priority-table-container" style="max-height: 480px; overflow-y: auto;">
+                        <table class="priority-table" id="trend-data-table">
+                            <thead>
+                                <tr id="trend-table-header">
+                                    <!-- Dynamic headers: Vùng, Date 1, Date 2, ... -->
+                                </tr>
+                            </thead>
+                            <tbody id="trend-table-body">
+                                <!-- Dynamic rows: Toàn quốc, Region 1, Region 2, ... -->
                             </tbody>
                         </table>
                     </div>
@@ -200,7 +223,7 @@
                         <div class="mini-stat-label">Tỷ Lệ Tự Nộp</div>
                         <div id="drawer-stat-rate" class="mini-stat-value" style="color: var(--color-cyan);">0%</div>
                     </div>
-                    <div class="mini-stat-card">
+                    <div class="mini-stat-card" style="display: none;">
                         <div class="mini-stat-label">Tổng COD Vùng</div>
                         <div id="drawer-stat-cod" class="mini-stat-value">0M</div>
                     </div>
@@ -229,7 +252,6 @@
                             <thead>
                                 <tr>
                                     <th>Tên Bưu Cục</th>
-                                    <th style="text-align: right;">Sản Lượng</th>
                                     <th style="text-align: right;">Tỷ Lệ</th>
                                     <th style="text-align: center;">Ưu Tiên</th>
                                 </tr>

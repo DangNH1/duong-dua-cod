@@ -783,3 +783,27 @@ footer a:hover {
 .guide-text strong {
     color: var(--color-cyan);
 }
+
+/* Trend Table Specific Styling */
+#trend-data-table {
+    min-width: 900px;
+}
+
+#trend-data-table th {
+    position: sticky;
+    top: 0;
+    background: #0d1527;
+    z-index: 2;
+}
+
+#trend-data-table tbody tr.national-row td {
+    background: rgba(0, 242, 254, 0.06);
+    border-bottom: 2px solid rgba(0, 242, 254, 0.15);
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+#trend-data-table tbody tr.national-row:hover td {
+    background: rgba(0, 242, 254, 0.1);
+}
+
