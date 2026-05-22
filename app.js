@@ -3,7 +3,6 @@
 // Includes: Aggregated data, Chart rendering, Excel parser, and Recommender
 // ==========================================================================
 
-// Global application state
 const appData = {
     "selectedDate":  "21/05/2026",
     "history":  {
@@ -9189,9 +9188,6 @@ const appData = {
                                                "TyLeTuNop":  22.1,
                                                "TenBuuCuc":  "Bưu Cục 01 Khu Dân Cư-Tứ Minh-Hải Dương"
                                            },
-                                           {
-                                               "TongCOD":  224.93,
-                                               "CODTuNop":  129,
                                                "TyLeTuNop":  57.4,
                                                "TenBuuCuc":  "Bưu Cục Chợ Ấp Đồn-Yên Trung-Yên Phong-Bắc Ninh"
                                            },
@@ -9356,6 +9352,7 @@ const appData = {
                 ]
 };
 
+
 // Date range of historical data
 let dateRange = [];
 let regionNames = [];
@@ -9366,7 +9363,7 @@ let trendChart = null;
 // Initialize Dashboard Data
 function initData() {
     // We try to load from localStorage first. If not present, we use the pre-compiled appData.
-    let stored = localStorage.getItem('cod_race_data');
+    let stored = localStorage.getItem('cod_race_data_v2');
     if (stored) {
         try {
             let parsed = JSON.parse(stored);
@@ -9386,7 +9383,7 @@ function initData() {
 }
 
 function saveDataToLocalStorage() {
-    localStorage.setItem('cod_race_data', JSON.stringify({
+    localStorage.setItem('cod_race_data_v2', JSON.stringify({
         regions: appData.regions,
         history: appData.history,
         selectedDate: appData.selectedDate,
@@ -9424,7 +9421,7 @@ function renderDashboard() {
 
     // Sort regions by rate to find winner
     let sortedRegions = [...appData.regions].sort((a, b) => b.TyLeTuNop - a.TyLeTuNop);
-    let topRegion = sortedRegions[0] || { TenVung: 'KhÃ´ng cÃ³', TyLeTuNop: 0 };
+    let topRegion = sortedRegions[0] || { TenVung: 'Không có', TyLeTuNop: 0 };
 
     // Update HTML values
     document.getElementById('national-rate').innerText = nationalRate + '%';
@@ -9451,29 +9448,27 @@ function renderDashboard() {
         let isUnderperformer = region.TyLeTuNop < 60; // Flag regions below 60%
 
         let item = document.createElement('div');
-        item.className = ace-item \;
+        item.className = 'race-item' + (isUnderperformer ? ' underperformer' : '');
         item.onclick = () => openRegionDeepDive(region.TenVung);
 
         let trendClass = region.Trend >= 0 ? 'up' : 'down';
         let trendIcon = region.Trend >= 0 ? 'fa-caret-up' : 'fa-caret-down';
-
         item.innerHTML = 
-            <div class="race-rank">\</div>
-            <div class="race-name-group">
-                <span class="race-name">\</span>
-                <span class="race-details">\M COD</span>
-            </div>
-            <div class="race-track-bg">
-                <div class="race-track-fill" style="width: \%"></div>
-            </div>
-            <div class="race-value-group">
-                <span class="race-percent">\%</span>
-                <span class="race-trend \">
-                    <i class="fas \"></i>
-                    \%
-                </span>
-            </div>
-        ;
+            '<div class="race-rank">' + rank + '</div>' +
+            '<div class="race-name-group">' +
+                '<span class="race-name">' + region.TenVung + '</span>' +
+                '<span class="race-details">' + formatCurrency(region.TongCOD) + 'M COD</span>' +
+            '</div>' +
+            '<div class="race-track-bg">' +
+                '<div class="race-track-fill" style="width: ' + region.TyLeTuNop + '%"></div>' +
+            '</div>' +
+            '<div class="race-value-group">' +
+                '<span class="race-percent">' + region.TyLeTuNop + '%</span>' +
+                '<span class="race-trend ' + trendClass + '">' +
+                    '<i class="fas ' + trendIcon + '"></i>' +
+                    Math.abs(region.Trend) + '%' +
+                '</span>' +
+            '</div>';
         raceContainer.appendChild(item);
     });
 
@@ -9515,26 +9510,25 @@ function renderOverallPriorityTable() {
 
     topPriority.forEach(office => {
         let badgeClass = 'badge-high';
-        let badgeText = 'Æ¯u tiÃªn Cao';
+        let badgeText = 'Ưu tiên Cao';
         
         if (office.ipi < 2000) {
             badgeClass = 'badge-medium';
-            badgeText = 'Trung bÃ¬nh';
+            badgeText = 'Trung bình';
         }
 
         let tr = document.createElement('tr');
         tr.innerHTML = 
-            <td>
-                <div style="font-weight: 700;">\</div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary);">\</div>
-            </td>
-            <td style="text-align: right; font-weight: 600; color: var(--text-primary);">\M</td>
-            <td style="text-align: right; font-weight: 700; color: var(--color-cyan);">\%</td>
-            <td style="text-align: right; font-weight: 600; color: var(--color-pink);">\M</td>
-            <td style="text-align: center;">
-                <span class="badge \"><i class="fas fa-exclamation-triangle"></i> \</span>
-            </td>
-        ;
+            '<td>' +
+                '<div style="font-weight: 700;">' + office.TenBuuCuc + '</div>' +
+                '<div style="font-size: 0.75rem; color: var(--text-secondary);">' + office.TenVung + '</div>' +
+            '</td>' +
+            '<td style="text-align: right; font-weight: 600; color: var(--text-primary);">' + office.TongCOD + 'M</td>' +
+            '<td style="text-align: right; font-weight: 700; color: var(--color-cyan);">' + office.TyLeTuNop + '%</td>' +
+            '<td style="text-align: right; font-weight: 600; color: var(--color-pink);">' + Math.round(office.unsubmittedCOD * 100) / 100 + 'M</td>' +
+            '<td style="text-align: center;">' +
+                '<span class="badge ' + badgeClass + '"><i class="fas fa-exclamation-triangle"></i> ' + badgeText + '</span>' +
+            '</td>';
         priorityBody.appendChild(tr);
     });
 }
@@ -9622,7 +9616,7 @@ function renderCharts(compareRegions = []) {
                     bodyFont: { family: 'Plus Jakarta Sans' },
                     callbacks: {
                         label: function(context) {
-                            return  \: \%;
+                            return context.dataset.label + ': ' + context.raw + '%';
                         }
                     }
                 }
@@ -9672,14 +9666,13 @@ function openRegionDeepDive(regionName) {
     if (region.TyLeTuNop < 60) {
         warningBox.style.display = 'block';
         document.getElementById('drawer-warning-text').innerHTML = 
-            <strong>Cáº£nh bÃ¡o:</strong> VÃ¹ng \ Ä‘ang cÃ³ tá»· lá»‡ dÆ°á»›i má»©c tiÃªu chuáº©n (60%). 
-            Cáº§n táº­p trung cáº£i thiá»‡n cÃ¡c bÆ°u cá»¥c cÃ³ Ä‘á»™ Æ°u tiÃªn cao phÃ­a dÆ°á»›i!
-        ;
+            '<strong>Cảnh báo:</strong> Vùng ' + region.TenVung + ' đang có tỷ lệ dưới mức tiêu chuẩn (60%). ' +
+            'Cần tập trung cải thiện các bưu cục có độ ưu tiên cao phía dưới!';
     } else {
         warningBox.style.display = 'none';
     }
 
-    // Render detailed bÆ°u cá»¥c list inside drawer, sorted by IPI
+    // Render detailed bưu cục list inside drawer, sorted by IPI
     let buuCucList = [...region.BuuCucList];
     
     // Add calculations
@@ -9698,11 +9691,11 @@ function openRegionDeepDive(regionName) {
 
     buuCucList.forEach(office => {
         let badgeClass = 'badge-low';
-        let badgeText = 'Tháº¥p';
+        let badgeText = 'Thấp';
 
         if (office.ipi > 2000) {
             badgeClass = 'badge-high';
-            badgeText = 'Æ¯u TiÃªn Cao';
+            badgeText = 'Ưu Tiên Cao';
         } else if (office.ipi > 500) {
             badgeClass = 'badge-medium';
             badgeText = 'Trung BÃ¬nh';
@@ -9710,15 +9703,14 @@ function openRegionDeepDive(regionName) {
 
         let tr = document.createElement('tr');
         tr.innerHTML = 
-            <td>
-                <div style="font-weight:700;">\</div>
-            </td>
-            <td style="text-align: right; font-weight: 600;">\M</td>
-            <td style="text-align: right; font-weight: 700; color: var(--color-cyan);">\%</td>
-            <td style="text-align: center;">
-                <span class="badge \">\</span>
-            </td>
-        ;
+            '<td>' +
+                '<div style="font-weight:700;">' + office.TenBuuCuc + '</div>' +
+            '</td>' +
+            '<td style="text-align: right; font-weight: 600;">' + office.TongCOD + 'M</td>' +
+            '<td style="text-align: right; font-weight: 700; color: var(--color-cyan);">' + office.TyLeTuNop + '%</td>' +
+            '<td style="text-align: center;">' +
+                '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
+            '</td>';
         listBody.appendChild(tr);
     });
 
@@ -9751,7 +9743,7 @@ function openRegionDeepDive(regionName) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    callbacks: { label: function(context) { return  Tá»· lá»‡: \%; } }
+                    callbacks: { label: function(context) { return 'Tỷ lệ: ' + context.raw + '%'; } }
                 }
             },
             scales: {
@@ -9801,9 +9793,8 @@ function setupEvents() {
         let isDefaultChecked = rName === regionNames[0] || rName === regionNames[4] || (regionNames.length <= 4 && rName === regionNames[0]);
 
         label.innerHTML = 
-            <input type="checkbox" value="\" \ style="accent-color: var(--color-cyan);">
-            <span>\</span>
-        ;
+            '<input type="checkbox" value="' + rName + '" ' + (isDefaultChecked ? 'checked' : '') + ' style="accent-color: var(--color-cyan);">' +
+            '<span>' + rName + '</span>';
         compareSelect.appendChild(label);
         
         // Listen to checkbox change to update chart
@@ -9823,7 +9814,7 @@ function setupEvents() {
     // 3. Reset Data Action
     document.getElementById('reset-btn').addEventListener('click', () => {
         if (confirm("Báº¡n cÃ³ cháº¯c cháº¯n muá»‘n cÃ i Ä‘áº·t láº¡i dá»¯ liá»‡u gá»‘c ban Ä‘áº§u khÃ´ng?")) {
-            localStorage.removeItem('cod_race_data');
+            localStorage.removeItem('cod_race_data_v2');
             location.reload();
         }
     });
@@ -9987,8 +9978,7 @@ function processImportedJSON(rows) {
                 isCK = true;
             }
         }
-
-        let key = \|\;
+        let key = dateStr + '|' + regionStr;
         if (!aggMap[key]) {
             aggMap[key] = { total: 0, ck: 0 };
         }
@@ -10002,7 +9992,7 @@ function processImportedJSON(rows) {
             if (/^\d+-/.test(officeStr)) {
                 officeStr = officeStr.replace(/^\d+-/, '');
             }
-            let offKey = \|\;
+            let offKey = regionStr + '|' + officeStr;
             if (!officeAggMap[offKey]) {
                 officeAggMap[offKey] = { total: 0, ck: 0 };
             }
@@ -10018,8 +10008,8 @@ function processImportedJSON(rows) {
     sortedDates.forEach(dateStr => {
         let dayList = [];
         sortedRegions.forEach(regStr => {
-            let key = \|\;
-            let agg = aggMap[key];
+            let key = dateStr + '|' + regStr;
+                let agg = aggMap[key];
             let rate = 0;
             if (agg && agg.total > 0) {
                 rate = Math.round((agg.ck / agg.total) * 1000) / 10;
@@ -10031,8 +10021,8 @@ function processImportedJSON(rows) {
 
     let regionsData = [];
     sortedRegions.forEach(regStr => {
-        let keyToday = \|\;
-        let keyYesterday = \|\;
+        let keyToday = latestDate + '|' + regStr;
+        let keyYesterday = yesterdayDate + '|' + regStr;
 
         let aggToday = aggMap[keyToday];
         let aggYesterday = aggMap[keyYesterday];
@@ -10057,7 +10047,7 @@ function processImportedJSON(rows) {
 
         let officesList = [];
         Object.keys(officeAggMap).forEach(offKey => {
-            if (offKey.startsWith(\|)) {
+            if (offKey.startsWith(regStr + '|')) {
                 let offName = offKey.substring(regStr.length + 1);
                 let offAgg = officeAggMap[offKey];
                 let offTotal = offAgg.total / 1000000;
@@ -10097,13 +10087,13 @@ function formatDateStr(val) {
         let d = val.getDate();
         let m = val.getMonth() + 1;
         let y = val.getFullYear();
-        return \\/\\/\;
+        return (d < 10 ? '0' + d : d) + '/' + (m < 10 ? '0' + m : m) + '/' + y;
     }
     let str = val.toString().trim();
     if (str.includes('-')) {
         let parts = str.split(' ')[0].split('-');
         if (parts[0].length === 4) { // yyyy-MM-dd
-            return \/\/\;
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
         }
     }
     if (str.includes('/')) {
@@ -10117,7 +10107,7 @@ function formatDateStr(val) {
                 d = m;
                 m = temp;
             }
-            return \\/\\/\;
+            return (d < 10 ? '0' + d : d) + '/' + (m < 10 ? '0' + m : m) + '/' + y;
         }
     }
     return str;
