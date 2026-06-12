@@ -11064,5 +11064,128 @@ window.addEventListener('DOMContentLoaded', () => {
 
     applyUserRoleSession();
     setupEvents();
+    setupGoogleLoginEvents();
 });
+
+// Google GHN Sign-in simulation & parsing (SEC-03 / UX SSO support)
+const ghnEmailMappings = {
+    "haidang@ghn.vn": { role: "amhcm", region: "HCM", name: "Nguyễn Hải Đăng" },
+    "admin@ghn.vn": { role: "admin", region: "Toàn quốc", name: "Admin Nguyễn Hải Đăng" }
+};
+
+function handleGoogleLogin(email) {
+    email = email.trim().toLowerCase();
+    
+    // Check domain
+    if (!email.endsWith('@ghn.vn')) {
+        alert("Bảo mật hệ thống: Email đăng nhập phải thuộc hệ thống Giao Hàng Nhanh (có đuôi @ghn.vn)!");
+        return false;
+    }
+    
+    // Parse name from email (before @)
+    let parts = email.split('@')[0].split('.');
+    let userNameRaw = parts[0];
+    let displayName = userNameRaw.charAt(0).toUpperCase() + userNameRaw.slice(1);
+    
+    // Determine Role and Region
+    let role = 'guest';
+    let region = 'Toàn quốc';
+    let office = '';
+    
+    let mapped = ghnEmailMappings[email];
+    if (mapped) {
+        role = mapped.role;
+        region = mapped.region;
+        displayName = mapped.name;
+    } else {
+        if (email.startsWith('admin.')) {
+            role = 'admin';
+            displayName = "Admin GHN (" + displayName + ")";
+        } else if (email.includes('.am.')) {
+            // Find region from email (e.g. haidang.am.hcm -> hcm)
+            let regionIdx = parts.indexOf('am') + 1;
+            let reg = (regionIdx < parts.length) ? parts[regionIdx].toUpperCase() : 'HCM';
+            role = 'amhcm'; // Default role AM HCM
+            if (reg === 'HNO') role = 'amhno';
+            region = reg;
+            displayName = "AM " + reg + " (" + displayName + ")";
+        } else if (email.includes('.buuta.') || email.includes('.staff.')) {
+            role = 'buuta';
+            region = 'HCM';
+            office = 'Bưu Cục Quận 1';
+            displayName = "Bưu tá (" + displayName + ")";
+        } else {
+            role = 'guest';
+            displayName = displayName + " (GHN Viewer)";
+        }
+    }
+    
+    currentUser = {
+        username: email,
+        role: role,
+        name: displayName,
+        region: region,
+        office: office
+    };
+    
+    localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+    applyUserRoleSession();
+    location.reload();
+    return true;
+}
+
+// Bind Google SSO Modal Actions
+function setupGoogleLoginEvents() {
+    let googleBtn = document.getElementById('google-login-btn');
+    let googleModal = document.getElementById('google-login-modal');
+    let closeBtn = document.getElementById('close-google-modal-btn');
+    
+    if (googleBtn && googleModal) {
+        googleBtn.addEventListener('click', () => {
+            googleModal.style.display = 'flex';
+            googleModal.classList.add('active');
+            document.getElementById('google-login-error').style.display = 'none';
+        });
+    }
+    
+    if (closeBtn && googleModal) {
+        closeBtn.addEventListener('click', () => {
+            googleModal.style.display = 'none';
+            googleModal.classList.remove('active');
+        });
+    }
+    
+    let emailForm = document.getElementById('google-email-form');
+    if (emailForm) {
+        emailForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            let emailUser = document.getElementById('google-email-input').value.trim();
+            if (!emailUser) return;
+            
+            let fullEmail = emailUser;
+            if (!fullEmail.includes('@')) {
+                fullEmail = emailUser + '@ghn.vn';
+            }
+            
+            if (handleGoogleLogin(fullEmail)) {
+                googleModal.style.display = 'none';
+                googleModal.classList.remove('active');
+            } else {
+                document.getElementById('google-login-error').style.display = 'block';
+            }
+        });
+    }
+    
+    // Quick login buttons inside Google Modal
+    document.querySelectorAll('.google-quick-btn').forEach(btn => {
+        btn.onclick = () => {
+            let email = btn.getAttribute('data-email');
+            if (email.endsWith('@ghn.vn')) {
+                handleGoogleLogin(email);
+            } else {
+                alert("Bảo mật hệ thống: Yêu cầu đăng nhập bằng email @ghn.vn!");
+            }
+        };
+    });
+}
 
