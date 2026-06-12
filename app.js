@@ -9324,9 +9324,181 @@ let regionNames = [];
 // ChartJs instance holder
 let trendChart = null;
 
+// ==========================================================================
+// CHECKPOINT 2 - SECURITY SYSTEM, MOCK USERS & WORKFLOW AUTOMATIONS
+// ==========================================================================
+
+// SEC-01: HTML Escaper to prevent XSS
+function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// SEC-04: Password Hash using native browser crypto (SHA-256)
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Mock User Database (Week 3 Security) - Storing hashed passwords instead of plaintext
+const mockUsers = {
+    "admin": { username: "admin", passwordHash: "240eb51856134e7a177b2d47b59e4bb1ec148b6c161973e488d3eec9d3000676", role: "admin", name: "Trần Thế Anh", region: "Toàn quốc" },
+    "amhcm": { username: "amhcm", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhcm", name: "Nguyễn Văn Hùng", region: "HCM" },
+    "amhno": { username: "amhno", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhno", name: "Phạm Minh Hoàng", region: "HNO" },
+    "buuta": { username: "buuta", passwordHash: "f7d754b2cf0686940c310fb4e297805d2c88f763c32e92ec4eb0429188849b29", role: "buuta", name: "Lê Văn Tiến", region: "HCM", office: "Bưu Cục Quận 1" },
+    "guest": { username: "guest", passwordHash: "84bb87d8961726a5704d9c75567b545d61991866cf01826cf8d5de863e414c1d", role: "guest", name: "Người Xem Thử Nghiệm", region: "Toàn quốc" }
+};
+
+let currentUser = null;
+
+// Get Active User Session
+function getActiveUser() {
+    if (currentUser) return currentUser;
+    let stored = localStorage.getItem('cod_race_user');
+    if (stored) {
+        try {
+            currentUser = JSON.parse(stored);
+            return currentUser;
+        } catch(e) {
+            currentUser = null;
+        }
+    }
+    return null;
+}
+
+// Lockout counter and timestamp
+let failedAttempts = 0;
+let lockoutUntil = 0;
+
+// Handle Login Event
+async function handleLogin(username, password) {
+    username = username.trim().toLowerCase();
+    
+    let now = Date.now();
+    if (lockoutUntil > now) {
+        let secondsLeft = Math.ceil((lockoutUntil - now) / 1000);
+        alert('Tài khoản tạm thời bị khóa do nhập sai quá nhiều lần. Vui lòng thử lại sau ' + secondsLeft + ' giây.');
+        return false;
+    }
+
+    let user = mockUsers[username];
+    if (user) {
+        let hash = await sha256(password);
+        if (user.passwordHash === hash) {
+            failedAttempts = 0;
+            currentUser = user;
+            localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+            applyUserRoleSession();
+            return true;
+        }
+    }
+    
+    failedAttempts++;
+    if (failedAttempts >= 5) {
+        lockoutUntil = Date.now() + 30000; // Lock for 30s
+        alert('Đăng nhập sai quá 5 lần! Hệ thống sẽ khóa đăng nhập trong 30 giây.');
+    }
+    return false;
+}
+
+// Handle Logout Event
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem('cod_race_user');
+    location.reload();
+}
+
+// Security Routing Guard & View Adaptations
+function applyUserRoleSession() {
+    let user = getActiveUser();
+    
+    let loginOverlay = document.getElementById('login-overlay');
+    let profileSection = document.getElementById('user-profile-section');
+    let userNameEl = document.getElementById('header-user-name');
+    let userRoleEl = document.getElementById('header-user-role');
+    let testerSwitcher = document.getElementById('tester-switcher');
+    let adminView = document.getElementById('admin-view');
+    let staffView = document.getElementById('staff-view');
+    let resetBtn = document.getElementById('reset-btn');
+    let dropZone = document.getElementById('drop-zone');
+
+    if (!user) {
+        if (loginOverlay) loginOverlay.style.display = 'flex';
+        if (profileSection) profileSection.style.display = 'none';
+        if (testerSwitcher) testerSwitcher.style.display = 'none';
+        return;
+    }
+
+    if (loginOverlay) loginOverlay.style.display = 'none';
+    if (profileSection) {
+        profileSection.style.display = 'flex';
+        userNameEl.innerText = user.name;
+        userRoleEl.innerText = user.role === 'admin' ? 'Admin' : (user.role.startsWith('am') ? 'Area Manager' : user.role.toUpperCase());
+    }
+    if (testerSwitcher) {
+        testerSwitcher.style.display = 'flex';
+        let quickSelect = document.getElementById('quick-role-select');
+        if (quickSelect) quickSelect.value = user.username;
+    }
+
+    // Reset guarding classes
+    if (dropZone) dropZone.classList.remove('panel-locked');
+    if (resetBtn) resetBtn.style.display = 'inline-flex';
+
+    if (user.role === 'buuta') {
+        if (adminView) adminView.style.display = 'none';
+        if (staffView) staffView.style.display = 'block';
+        renderStaffWorkspace();
+    } else {
+        if (adminView) adminView.style.display = 'block';
+        if (staffView) staffView.style.display = 'none';
+        
+        if (user.role === 'guest') {
+            if (dropZone) dropZone.classList.add('panel-locked');
+            if (resetBtn) resetBtn.style.display = 'none';
+        } else if (user.role.startsWith('am')) {
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+        
+        renderDashboard();
+        renderCharts();
+    }
+}
+
+// Role-Based Data Filters
+function getFilteredRegions() {
+    let user = getActiveUser();
+    if (!user || user.role === 'admin' || user.role === 'guest') {
+        return appData.regions || [];
+    }
+    if (user.role === 'amhcm') {
+        return (appData.regions || []).filter(r => r.TenVung === 'HCM');
+    }
+    if (user.role === 'amhno') {
+        return (appData.regions || []).filter(r => r.TenVung === 'HNO');
+    }
+    return appData.regions || [];
+}
+
+function getFilteredRegionNames() {
+    let user = getActiveUser();
+    if (!user || user.role === 'admin' || user.role === 'guest') {
+        return regionNames || [];
+    }
+    if (user.role === 'amhcm') return ['HCM'];
+    if (user.role === 'amhno') return ['HNO'];
+    return regionNames || [];
+}
+
 // Initialize Dashboard Data
 function initData() {
-    // We try to load from localStorage first. If not present, we use the pre-compiled appData.
     let stored = localStorage.getItem('cod_race_data_v2');
     if (stored) {
         try {
@@ -9337,13 +9509,27 @@ function initData() {
             appData.dateRange = parsed.dateRange || Object.keys(parsed.history).sort();
             appData.regionNames = parsed.regionNames || parsed.regions.map(r => r.TenVung).sort();
         } catch(e) {
-            console.error("Error loading stored data from localStorage", e);
+            console.error("Error loading stored data", e);
         }
     }
     
-    // Set dateRange and regionNames
     dateRange = appData.dateRange || [];
     regionNames = appData.regionNames || [];
+
+    // Dynamically inject "Bưu Cục Quận 1" to HCM region for Staff workspace if missing
+    let hcm = appData.regions.find(r => r.TenVung === 'HCM');
+    if (hcm) {
+        let q1Office = hcm.BuuCucList.find(o => o.TenBuuCuc.includes('Quận 1') || o.TenBuuCuc === 'Bưu Cục Quận 1');
+        if (!q1Office) {
+            hcm.BuuCucList.push({
+                TenBuuCuc: "Bưu Cục Quận 1",
+                TongCOD: 420.5,
+                CODTuNop: 126.15,
+                TyLeTuNop: 30.0
+            });
+            saveDataToLocalStorage();
+        }
+    }
 }
 
 function saveDataToLocalStorage() {
@@ -9356,38 +9542,43 @@ function saveDataToLocalStorage() {
     }));
 }
 
-// Render UI Components
+// Render Dashboard View
 function renderDashboard() {
-    if (!appData.regions || appData.regions.length === 0) {
+    let regions = getFilteredRegions();
+    if (!regions || regions.length === 0) {
         console.warn("No region data to render");
         return;
     }
     
+    let user = getActiveUser();
+    let isAM = user && user.role.startsWith('am');
+
     // 1. Calculate and update summary stats
     let totalCOD = 0;
     let totalCODTuNop = 0;
 
-    appData.regions.forEach(r => {
+    regions.forEach(r => {
         totalCOD += r.TongCOD;
         totalCODTuNop += r.CODTuNop;
     });
 
     let nationalRate = totalCOD > 0 ? Math.round((totalCODTuNop / totalCOD) * 1000) / 10 : 0;
     
-    // Calculate national yesterday rate for trend
     let totalYesterdayCODTuNop = 0;
-    appData.regions.forEach(r => {
+    regions.forEach(r => {
         let yesterdayRate = r.TyLeTuNop - r.Trend;
         totalYesterdayCODTuNop += r.TongCOD * (yesterdayRate / 100);
     });
     let nationalYesterdayRate = totalCOD > 0 ? Math.round((totalYesterdayCODTuNop / totalCOD) * 1000) / 10 : 0;
     let nationalTrend = Math.round((nationalRate - nationalYesterdayRate) * 10) / 10;
 
-    // Sort regions by rate to find winner
-    let sortedRegions = [...appData.regions].sort((a, b) => b.TyLeTuNop - a.TyLeTuNop);
+    let sortedRegions = [...regions].sort((a, b) => b.TyLeTuNop - a.TyLeTuNop);
     let topRegion = sortedRegions[0] || { TenVung: 'Không có', TyLeTuNop: 0 };
 
-    // Update HTML values
+    // Update Titles dynamically
+    document.querySelector('#stat-national-rate h3').innerText = isAM ? 'Tỷ Lệ Tự Nộp Vùng' : 'Tỷ Lệ Tự Nộp COD';
+    document.querySelector('#stat-total-cod h3').innerText = isAM ? 'Tổng Sản Lượng Vùng' : 'Tổng Sản Lượng COD';
+    
     document.getElementById('national-rate').innerText = nationalRate + '%';
     document.getElementById('national-trend-val').innerText = (nationalTrend >= 0 ? '+' : '') + nationalTrend + '%';
     let nationalTrendIcon = document.getElementById('national-trend-icon');
@@ -9409,7 +9600,7 @@ function renderDashboard() {
 
     sortedRegions.forEach((region, index) => {
         let rank = index + 1;
-        let isUnderperformer = region.TyLeTuNop < 60; // Flag regions below 60%
+        let isUnderperformer = region.TyLeTuNop < 60;
 
         let item = document.createElement('div');
         item.className = 'race-item' + (isUnderperformer ? ' underperformer' : '');
@@ -9420,7 +9611,7 @@ function renderDashboard() {
         item.innerHTML = 
             '<div class="race-rank">' + rank + '</div>' +
             '<div class="race-name-group">' +
-                '<span class="race-name">' + region.TenVung + '</span>' +
+                '<span class="race-name">' + escapeHTML(region.TenVung) + '</span>' +
                 '<span class="race-details">' + region.BuuCucList.length + ' bưu cục</span>' +
             '</div>' +
             '<div class="race-track-bg">' +
@@ -9443,18 +9634,16 @@ function renderDashboard() {
     renderTrendTable();
 }
 
-// Compute Improvement Priority Index (IPI) and render Priority Table
+// Compute Improvement Priority Index (IPI) and render Priority Table (Workflow 2 triggers added)
 function renderOverallPriorityTable() {
     let allOffices = [];
+    let regions = getFilteredRegions();
     
-    appData.regions.forEach(region => {
+    regions.forEach(region => {
         if (!region.BuuCucList) return;
         region.BuuCucList.forEach(office => {
-            // Improvement Potential = 100% - Current Self-deposit Rate
             let potential = 100 - office.TyLeTuNop;
-            // Un-self-deposited COD amount
             let unsubmittedCOD = office.TongCOD - office.CODTuNop;
-            // Formula: IPI = Potential (%) * Unsubmitted COD
             let ipiScore = Math.round(potential * unsubmittedCOD);
 
             allOffices.push({
@@ -9466,37 +9655,60 @@ function renderOverallPriorityTable() {
         });
     });
 
-    // Sort by Priority Index descending
     allOffices.sort((a, b) => b.unsubmittedCOD - a.unsubmittedCOD);
 
     let priorityBody = document.getElementById('priority-table-body');
+    if (!priorityBody) return;
     priorityBody.innerHTML = '';
 
-    // Take top 20 priority post offices for action plan
-    let topPriority = allOffices.slice(0, 20);
+    // Adjust table headers for Action
+    let tableHeader = priorityBody.closest('table').querySelector('thead tr');
+    if (tableHeader && tableHeader.cells.length === 3) {
+        let thAction = document.createElement('th');
+        thAction.style.textAlign = 'center';
+        thAction.innerText = 'Hành động';
+        tableHeader.appendChild(thAction);
+    }
+
+    let topPriority = allOffices.slice(0, 10);
 
     topPriority.forEach(office => {
         let badgeClass = 'badge-high';
-        let badgeText = '\u01AFu ti\u00EAn Cao';
+        let badgeText = 'Ưu tiên Cao';
         
         if (office.unsubmittedCOD < 30) {
             badgeClass = 'badge-low';
-            badgeText = 'Th\u1EA5p';
+            badgeText = 'Thấp';
         } else if (office.unsubmittedCOD < 100) {
             badgeClass = 'badge-medium';
-            badgeText = 'Trung b\u00ECnh';
+            badgeText = 'Trung bình';
+        }
+
+        let isIntervened = checkIfIntervened(office.TenBuuCuc);
+        let actionBtnHTML = '';
+        let user = getActiveUser();
+
+        if (user && (user.role === 'admin' || user.role.startsWith('am'))) {
+            if (isIntervened) {
+                actionBtnHTML = '<span style="color: var(--color-green); font-size: 0.8125rem; font-weight: 600;"><i class="fas fa-check-circle"></i> Đã nhắc</span>';
+            } else {
+                actionBtnHTML = '<button class="btn btn-primary btn-intervene" data-office="' + escapeHTML(office.TenBuuCuc) + '" data-region="' + escapeHTML(office.TenVung) + '" data-rate="' + office.TyLeTuNop + '" data-unsubmitted="' + office.unsubmittedCOD + '" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;"><i class="fas fa-brain"></i> Can thiệp</button>';
+            }
+        } else {
+            actionBtnHTML = '<span style="color: var(--text-muted); font-size: 0.75rem;"><i class="fas fa-lock"></i> Khóa</span>';
         }
 
         let tr = document.createElement('tr');
         tr.innerHTML = 
             '<td>' +
-                '<div style="font-weight: 700;">' + office.TenBuuCuc + '</div>' +
-                '<div style="font-size: 0.75rem; color: var(--text-secondary);">' + office.TenVung + '</div>' +
+                '<div style="font-weight: 700;">' + escapeHTML(office.TenBuuCuc) + '</div>' +
+                '<div style="font-size: 0.75rem; color: var(--text-secondary);">' + escapeHTML(office.TenVung) + '</div>' +
             '</td>' +
-            '<td style="text-align: right; font-weight: 700; color: var\(--color-cyan\);">' + office.TyLeTuNop + '%</td>' +
+            '<td style="text-align: right; font-weight: 700; color: var(--color-cyan);">' + office.TyLeTuNop + '%</td>' +
             '<td style="text-align: center;">' +
                 '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
-            '</td>';
+            '</td>' +
+            '<td style="text-align: center;">' + actionBtnHTML + '</td>';
         priorityBody.appendChild(tr);
     });
 }
@@ -9510,7 +9722,6 @@ function renderTrendTable() {
     headerTr.innerHTML = '';
     bodyTbody.innerHTML = '';
 
-    // Create the header row
     let thVung = document.createElement('th');
     thVung.innerText = 'Vùng';
     headerTr.appendChild(thVung);
@@ -9518,12 +9729,19 @@ function renderTrendTable() {
     dateRange.forEach(date => {
         let thDate = document.createElement('th');
         thDate.style.textAlign = 'center';
-        thDate.innerText = date.substring(0, 5); // Format as DD/MM
+        thDate.innerText = date.substring(0, 5);
         headerTr.appendChild(thDate);
     });
 
-    // We want to show "Toàn quốc" first, then the other regions alphabetically.
-    let rowsToRender = ['Toàn quốc', ...[...regionNames].sort()];
+    let displayRegionNames = getFilteredRegionNames();
+    let rowsToRender = [];
+    let user = getActiveUser();
+    
+    if (user && user.role.startsWith('am')) {
+        rowsToRender = [...displayRegionNames].sort();
+    } else {
+        rowsToRender = ['Toàn quốc', ...[...displayRegionNames].sort()];
+    }
 
     rowsToRender.forEach(rowName => {
         let tr = document.createElement('tr');
@@ -9544,7 +9762,6 @@ function renderTrendTable() {
             tdRate.style.textAlign = 'center';
             tdRate.innerText = rate + '%';
 
-            // Conditional styling based on 60% threshold
             if (rate < 60) {
                 tdRate.style.color = 'var(--color-pink)';
                 tdRate.style.fontWeight = '700';
@@ -9568,7 +9785,8 @@ function renderCharts(compareRegions = []) {
         trendChart.destroy();
     }
 
-    // Default regions to compare
+    let displayRegionNames = getFilteredRegionNames();
+
     if (compareRegions.length === 0) {
         let compareSelect = document.getElementById('compare-select-container');
         if (compareSelect) {
@@ -9577,13 +9795,16 @@ function renderCharts(compareRegions = []) {
         }
     }
     if (compareRegions.length === 0) {
-        let available = appData.regionNames || regionNames || [];
-        compareRegions = ['To\u00E0n qu\u1ED1c'];
-        if (available.includes('HCM')) compareRegions.push('HCM');
-        if (available.includes('HNO')) compareRegions.push('HNO');
+        let user = getActiveUser();
+        if (user && user.role.startsWith('am')) {
+            compareRegions = [user.region];
+        } else {
+            compareRegions = ['Toàn quốc'];
+            if (displayRegionNames.includes('HCM')) compareRegions.push('HCM');
+            if (displayRegionNames.includes('HNO')) compareRegions.push('HNO');
+        }
     }
 
-    // Prepare line chart datasets
     let datasets = compareRegions.map((regionName, idx) => {
         let colors = [
             '#06b6d4', // cyan
@@ -9593,7 +9814,7 @@ function renderCharts(compareRegions = []) {
             '#f59e0b', // amber
             '#3b82f6'  // blue
         ];
-        let isNational = regionName === 'To\u00E0n qu\u1ED1c';
+        let isNational = regionName === 'Toàn quốc';
         let color = isNational ? '#f8fafc' : colors[idx % colors.length];
         
         let dataPoints = [];
@@ -9620,7 +9841,7 @@ function renderCharts(compareRegions = []) {
     trendChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: dateRange.map(d => d.substring(0, 5)), // format DD/MM
+            labels: dateRange.map(d => d.substring(0, 5)),
             datasets: datasets
         },
         options: {
@@ -9631,11 +9852,7 @@ function renderCharts(compareRegions = []) {
                     position: 'top',
                     labels: {
                         color: '#94a3b8',
-                        font: {
-                            family: 'Plus Jakarta Sans',
-                            size: 11,
-                            weight: 600
-                        },
+                        font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 },
                         boxWidth: 12,
                         padding: 15
                     }
@@ -9646,9 +9863,7 @@ function renderCharts(compareRegions = []) {
                     titleFont: { family: 'Plus Jakarta Sans', weight: 'bold' },
                     bodyFont: { family: 'Plus Jakarta Sans' },
                     callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': ' + context.raw + '%';
-                        }
+                        label: function(context) { return context.dataset.label + ': ' + context.raw + '%'; }
                     }
                 }
             },
@@ -9656,10 +9871,7 @@ function renderCharts(compareRegions = []) {
                 y: {
                     min: 0,
                     max: 100,
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)',
-                        drawBorder: false
-                    },
+                    grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
                     ticks: {
                         color: '#64748b',
                         font: { family: 'Plus Jakarta Sans', size: 10 },
@@ -9667,13 +9879,8 @@ function renderCharts(compareRegions = []) {
                     }
                 },
                 x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        color: '#64748b',
-                        font: { family: 'Plus Jakarta Sans', size: 10 }
-                    }
+                    grid: { display: false },
+                    ticks: { color: '#64748b', font: { family: 'Plus Jakarta Sans', size: 10 } }
                 }
             }
         }
@@ -9687,26 +9894,22 @@ function openRegionDeepDive(regionName) {
     let region = appData.regions.find(r => r.TenVung === regionName);
     if (!region) return;
 
-    // Fill general text values
     document.getElementById('drawer-region-name').innerText = region.TenVung;
     document.getElementById('drawer-stat-rate').innerText = region.TyLeTuNop + '%';
-    document.getElementById('drawer-stat-cod').innerText = formatCurrency(region.TongCOD) + 'M';
+    document.getElementById('drawer-stat-cod').innerText = formatCurrency(region.TongCOD * 1000000) + ' VNĐ';
 
-    // Highlight underperforming warning
     let warningBox = document.getElementById('drawer-warning-box');
     if (region.TyLeTuNop < 60) {
         warningBox.style.display = 'block';
         document.getElementById('drawer-warning-text').innerHTML = 
-            '<strong>Cảnh báo:</strong> Vùng ' + region.TenVung + ' đang có tỷ lệ dưới mức tiêu chuẩn (60%). ' +
+            '<strong>Cảnh báo:</strong> Vùng ' + escapeHTML(region.TenVung) + ' đang có tỷ lệ dưới mức tiêu chuẩn (60%). ' +
             'Cần tập trung cải thiện các bưu cục có độ ưu tiên cao phía dưới!';
     } else {
         warningBox.style.display = 'none';
     }
 
-    // Render detailed bưu cục list inside drawer, sorted by IPI
     let buuCucList = [...region.BuuCucList];
     
-    // Add calculations
     buuCucList.forEach(bc => {
         let potential = 100 - bc.TyLeTuNop;
         let unsubmittedCOD = bc.TongCOD - bc.CODTuNop;
@@ -9714,43 +9917,65 @@ function openRegionDeepDive(regionName) {
         bc.ipi = Math.round(potential * unsubmittedCOD);
     });
 
-    // Sort by priority (IPI)
     buuCucList.sort((a, b) => b.unsubmittedCOD - a.unsubmittedCOD);
 
     let listBody = document.getElementById('drawer-buucuc-table-body');
+    if (!listBody) return;
     listBody.innerHTML = '';
+
+    // Adjust table headers for Action
+    let drawerTableHead = listBody.closest('table').querySelector('thead tr');
+    if (drawerTableHead && drawerTableHead.cells.length === 3) {
+        let thAct = document.createElement('th');
+        thAct.style.textAlign = 'center';
+        thAct.innerText = 'Hành động';
+        drawerTableHead.appendChild(thAct);
+    }
 
     buuCucList.forEach(office => {
         let badgeClass = 'badge-low';
-        let badgeText = 'Th\u1EA5p';
+        let badgeText = 'Thấp';
 
         if (office.unsubmittedCOD >= 100) {
             badgeClass = 'badge-high';
-            badgeText = '\u01AFu Ti\u00EAn Cao';
+            badgeText = 'Ưu Tiên Cao';
         } else if (office.unsubmittedCOD >= 30) {
             badgeClass = 'badge-medium';
-            badgeText = 'Trung b\u00ECnh';
+            badgeText = 'Trung bình';
+        }
+
+        let isIntervened = checkIfIntervened(office.TenBuuCuc);
+        let actionBtnHTML = '';
+        let user = getActiveUser();
+
+        if (user && (user.role === 'admin' || user.role.startsWith('am'))) {
+            if (isIntervened) {
+                actionBtnHTML = '<span style="color: var(--color-green); font-weight: 600;"><i class="fas fa-check-circle"></i> Đã nhắc</span>';
+            } else {
+                actionBtnHTML = '<button class="btn btn-primary btn-intervene" data-office="' + escapeHTML(office.TenBuuCuc) + '" data-region="' + escapeHTML(region.TenVung) + '" data-rate="' + office.TyLeTuNop + '" data-unsubmitted="' + office.unsubmittedCOD + '" style="font-size: 0.65rem; padding: 0.2rem 0.4rem;"><i class="fas fa-brain"></i></button>';
+            }
+        } else {
+            actionBtnHTML = '<i class="fas fa-lock" style="color: var(--text-muted);"></i>';
         }
 
         let tr = document.createElement('tr');
         tr.innerHTML = 
             '<td>' +
-                '<div style="font-weight:700;">' + office.TenBuuCuc + '</div>' +
+                '<div style="font-weight:700;">' + escapeHTML(office.TenBuuCuc) + '</div>' +
             '</td>' +
-            '<td style="text-align: right; font-weight: 700; color: var\(--color-cyan\);">' + office.TyLeTuNop + '%</td>' +
+            '<td style="text-align: right; font-weight: 700; color: var(--color-cyan);">' + office.TyLeTuNop + '%</td>' +
             '<td style="text-align: center;">' +
                 '<span class="badge ' + badgeClass + '">' + badgeText + '</span>' +
-            '</td>';
+            '</td>' +
+            '<td style="text-align: center;">' + actionBtnHTML + '</td>';
         listBody.appendChild(tr);
     });
 
-    // Draw Mini Bar Chart for Post Office Rates inside drawer
     let miniCtx = document.getElementById('drawerRegionChart').getContext('2d');
     if (regionDetailChart) {
         regionDetailChart.destroy();
     }
 
-    // Sort by rate to show performance gap
     let rateSortedOffices = [...region.BuuCucList].sort((a, b) => a.TyLeTuNop - b.TyLeTuNop);
 
     regionDetailChart = new Chart(miniCtx, {
@@ -9758,10 +9983,10 @@ function openRegionDeepDive(regionName) {
         data: {
             labels: rateSortedOffices.map(o => o.TenBuuCuc),
             datasets: [{
-                label: 'Tá»· lá»‡ tá»± ná»™p (%)',
+                label: 'Tỷ lệ tự nộp (%)',
                 data: rateSortedOffices.map(o => o.TyLeTuNop),
-                backgroundColor: rateSortedOffices.map(o => o.TyLeTuNop < 60 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(59, 130, 246, 0.7)'),
-                borderColor: rateSortedOffices.map(o => o.TyLeTuNop < 60 ? '#ef4444' : '#3b82f6'),
+                backgroundColor: rateSortedOffices.map(o => o.TyLeTuNop < 60 ? 'rgba(244, 63, 94, 0.7)' : 'rgba(0, 242, 254, 0.7)'),
+                borderColor: rateSortedOffices.map(o => o.TyLeTuNop < 60 ? '#f43f5e' : '#00f2fe'),
                 borderWidth: 1,
                 borderRadius: 4
             }]
@@ -9785,13 +10010,12 @@ function openRegionDeepDive(regionName) {
                 },
                 y: {
                     grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 10 } }
+                    ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 9 } }
                 }
             }
         }
     });
 
-    // Show Drawer
     document.getElementById('region-drawer').classList.add('active');
 }
 
@@ -9801,15 +10025,21 @@ function closeRegionDeepDive() {
 
 // Setup Event Listeners
 function setupEvents() {
-    // 1. Comparison Checkboxes/Selectors Setup
     let compareSelect = document.getElementById('compare-select-container');
+    if (!compareSelect) return;
     compareSelect.innerHTML = '';
     
-    // Sort regions alphabetically to make search easy
-    let sortedRegionNames = [...regionNames].sort();
-    let allOptions = ['To\u00E0n qu\u1ED1c', ...sortedRegionNames];
+    let displayRegionNames = getFilteredRegionNames();
+    let sortedRegionNames = [...displayRegionNames].sort();
     
-    // Let's render checkboxes in a dropdown-like container
+    let user = getActiveUser();
+    let allOptions = [];
+    if (user && user.role.startsWith('am')) {
+        allOptions = [...sortedRegionNames];
+    } else {
+        allOptions = ['Toàn quốc', ...sortedRegionNames];
+    }
+    
     allOptions.forEach(rName => {
         let label = document.createElement('label');
         label.style.display = 'flex';
@@ -9820,15 +10050,13 @@ function setupEvents() {
         label.style.color = 'var(--text-secondary)';
         label.style.padding = '0.25rem 0.5rem';
 
-        // Check first 2 by default
-        let isDefaultChecked = rName === 'To\u00E0n qu\u1ED1c' || rName === 'HCM' || rName === 'HNO' || rName === regionNames[0] || rName === regionNames[4] || (regionNames.length <= 4 && rName === regionNames[0]);
+        let isDefaultChecked = rName === 'Toàn quốc' || rName === 'HCM' || rName === 'HNO' || rName === displayRegionNames[0];
 
         label.innerHTML = 
-            '<input type="checkbox" value="' + rName + '" ' + (isDefaultChecked ? 'checked' : '') + ' style="accent-color: var(--color-cyan);">' +
-            '<span>' + rName + '</span>';
+            '<input type="checkbox" value="' + escapeHTML(rName) + '" ' + (isDefaultChecked ? 'checked' : '') + ' style="accent-color: var(--color-cyan);">' +
+            '<span>' + escapeHTML(rName) + '</span>';
         compareSelect.appendChild(label);
         
-        // Listen to checkbox change to update chart
         label.querySelector('input').addEventListener('change', () => {
             let checkedInputs = compareSelect.querySelectorAll('input:checked');
             let selected = Array.from(checkedInputs).map(input => input.value);
@@ -9836,25 +10064,40 @@ function setupEvents() {
         });
     });
 
-    // 2. Drawer close event
+    // Bind drawer close
     document.getElementById('close-drawer-btn').addEventListener('click', closeRegionDeepDive);
     document.getElementById('region-drawer').addEventListener('click', (e) => {
         if (e.target.id === 'region-drawer') closeRegionDeepDive();
     });
 
-    // 3. Reset Data Action
+    // Reset Data Action
     document.getElementById('reset-btn').addEventListener('click', () => {
-        if (confirm("Báº¡n cÃ³ cháº¯c cháº¯n muá»‘n cÃ i Ä‘áº·t láº¡i dá»¯ liá»‡u gá»‘c ban Ä‘áº§u khÃ´ng?")) {
+        let user = getActiveUser();
+        if (!user || user.role !== 'admin') {
+            alert("Bạn không có quyền thực hiện việc đặt lại dữ liệu!");
+            return;
+        }
+        if (confirm("Bạn có chắc chắn muốn cài đặt lại dữ liệu gốc ban đầu không?")) {
             localStorage.removeItem('cod_race_data_v2');
+            localStorage.removeItem('cod_race_user');
+            // Clear mock logs as well
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('staff_cod_logs_') || key.startsWith('cod_race_intervened_')) {
+                    localStorage.removeItem(key);
+                }
+            });
             location.reload();
         }
     });
 
-    // 4. Excel Import Setup
     setupExcelImport();
 
-    // 5. Excel Template Download Setup
-    document.getElementById('download-template-btn').addEventListener('click', exportSampleExcel);
+    let downloadBtn = document.getElementById('download-template-btn');
+    if (downloadBtn) {
+        let newBtn = downloadBtn.cloneNode(true);
+        downloadBtn.parentNode.replaceChild(newBtn, downloadBtn);
+        newBtn.addEventListener('click', exportSampleExcel);
+    }
 }
 
 // Drag and drop Excel importer using SheetJS
@@ -9864,28 +10107,50 @@ function setupExcelImport() {
 
     if (!dropZone || !fileInput) return;
 
-    // Make dropZone trigger file input
-    dropZone.addEventListener('click', () => fileInput.click());
+    let newFileInput = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    fileInput = newFileInput;
 
-    // Highlight dropZone on drag events
-    ['dragenter', 'dragover'].forEach(eventName => {
+    // Trigger file selection
+    dropZone.onclick = () => {
+        let user = getActiveUser();
+        if (user && user.role === 'guest') {
+            alert("Khách xem thử nghiệm không có quyền tải lên báo cáo!");
+            return;
+        }
+        fileInput.click();
+    };
+
+    // Prevent default drag events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
+        }, false);
+    });
+
+    // Drag highlights
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            let user = getActiveUser();
+            if (user && user.role === 'guest') return;
             dropZone.classList.add('dragover');
         }, false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        dropZone.addEventListener(eventName, () => {
             dropZone.classList.remove('dragover');
         }, false);
     });
 
-    // Handle dropped files
+    // Handle drops
     dropZone.addEventListener('drop', (e) => {
+        let user = getActiveUser();
+        if (user && user.role === 'guest') {
+            alert("Khách xem thử nghiệm không có quyền tải lên báo cáo!");
+            return;
+        }
         let dt = e.dataTransfer;
         let files = dt.files;
         if (files.length) {
@@ -9893,7 +10158,6 @@ function setupExcelImport() {
         }
     });
 
-    // Handle selected files
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length) {
             handleExcelFile(e.target.files[0]);
@@ -9903,7 +10167,7 @@ function setupExcelImport() {
 
 function handleExcelFile(file) {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.csv')) {
-        alert("Vui lÃ²ng chá»‰ táº£i lÃªn tá»‡p Excel (.xlsx, .xls) hoáº·c CSV!");
+        alert("Vui lòng chỉ tải lên tệp Excel (.xlsx, .xls) hoặc CSV!");
         return;
     }
 
@@ -9912,35 +10176,25 @@ function handleExcelFile(file) {
         try {
             let data = new Uint8Array(e.target.result);
             let workbook = XLSX.read(data, {type: 'array'});
-            
-            // Assume the first sheet is the operational sheet
             let sheetName = workbook.SheetNames[0];
             let worksheet = workbook.Sheets[sheetName];
             let json = XLSX.utils.sheet_to_json(worksheet);
 
             if (json.length === 0) {
-                alert("Tá»‡p Excel rá»—ng hoáº·c Ä‘á»‹nh dáº¡ng khÃ´ng Ä‘Ãºng!");
+                alert("Tệp Excel rỗng hoặc định dạng không đúng!");
                 return;
             }
 
-            // Parse and format the excel JSON to appData state
             processImportedJSON(json);
-            
-            alert("Táº£i lÃªn dá»¯ liá»‡u má»›i thÃ nh cÃ´ng!");
-            saveDataToLocalStorage();
-            initData();
-            renderDashboard();
-            renderCharts();
-            setupEvents(); // Re-render checkboxes
         } catch (err) {
             console.error(err);
-            alert("ÄÃ£ xáº£y ra lá»—i khi Ä‘á»c tá»‡p Excel. Vui lÃ²ng kiá»ƒm tra láº¡i cáº¥u trÃºc file!");
+            alert("Đã xảy ra lỗi khi đọc tệp Excel. Vui lòng kiểm tra lại cấu trúc file!");
         }
     };
     reader.readAsArrayBuffer(file);
 }
 
-// Helper to clean and normalize Vietnamese diacritics for comparisons
+// Clean and normalize Vietnamese diacritics
 function removeVietnameseDiacritics(str) {
     if (!str) return '';
     return str.toString()
@@ -9952,7 +10206,7 @@ function removeVietnameseDiacritics(str) {
         .trim();
 }
 
-// Check if string is a valid dd/MM/yyyy date
+// Date helper validator
 function isValidDateStr(str) {
     if (!str) return false;
     let parts = str.split('/');
@@ -9963,16 +10217,16 @@ function isValidDateStr(str) {
     return d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 2000 && y <= 2100;
 }
 
-// Convert parsed Excel rows into structured appData
+// Workflow 1: Validation, Cleaning and Logging Pipeline
+let tempImportedRows = null;
+
 function processImportedJSON(rows) {
     if (!rows || rows.length === 0) return;
 
     let keys = Object.keys(rows[0]);
-    
-    // Normalize keys to find matches robustly
     let cleanKeys = keys.map(k => {
         if (!k) return "";
-        return removeVietnameseDiacritics(k).replace(/[^a-z0-9]/g, ""); // strip underscores, spaces, etc.
+        return removeVietnameseDiacritics(k).replace(/[^a-z0-9]/g, "");
     });
 
     let idxPayment = cleanKeys.findIndex(ck => ck.includes('hinhthucthanhtoan') || ck.includes('hinhthuc') || ck.includes('payment') || ck.includes('pttt'));
@@ -9981,75 +10235,60 @@ function processImportedJSON(rows) {
     let idxMoney = cleanKeys.findIndex(ck => ck.includes('tongsotiennop') || ck.includes('tongtien') || ck.includes('tongcod') || ck.includes('amount') || ck.includes('money') || ck.includes('tiennop'));
     let idxRegion = cleanKeys.findIndex(ck => ck.includes('vung') || ck.includes('vng') || ck.includes('region'));
 
-    // Fallbacks to indexes if not found
     let colPayment = idxPayment !== -1 ? keys[idxPayment] : keys[0];
     let colDate = idxDate !== -1 ? keys[idxDate] : keys[1];
     let colOffice = idxOffice !== -1 ? keys[idxOffice] : keys[2];
     let colMoney = idxMoney !== -1 ? keys[idxMoney] : keys[5];
     let colRegion = idxRegion !== -1 ? keys[idxRegion] : keys[6];
 
-    // 1. Gather all unique dates and regions
-    let uniqueDates = new Set();
-    let uniqueRegions = new Set();
-    
-    rows.forEach(row => {
-        let officeVal = row[colOffice];
-        if (officeVal) {
-            let officeStr = officeVal.toString().trim();
-            if (/22222004|22064000|22222002|22584000/.test(officeStr)) {
-                return;
-            }
-        }
-        let dateVal = row[colDate];
-        if (dateVal) {
-            let dateStr = formatDateStr(dateVal);
-            if (isValidDateStr(dateStr)) {
-                uniqueDates.add(dateStr);
-            }
-        }
-        let regionVal = row[colRegion];
-        if (regionVal) {
-            uniqueRegions.add(regionVal.toString().trim());
-        }
-    });
+    let user = getActiveUser();
+    let isAM = user && user.role.startsWith('am');
 
-    let sortedDates = Array.from(uniqueDates).sort((a, b) => parseDateStr(a) - parseDateStr(b));
-    let sortedRegions = Array.from(uniqueRegions).sort();
-    
-    if (sortedDates.length === 0) {
-        alert("KhÃ´ng tÃ¬m tháº¥y thÃ´ng tin ngÃ y thÃ¡ng há»£p lá»‡!");
-        return;
-    }
-    
-    let latestDate = sortedDates[sortedDates.length - 1];
-    let yesterdayDate = sortedDates.length > 1 ? sortedDates[sortedDates.length - 2] : latestDate;
+    let validCount = 0;
+    let cleanedCount = 0;
+    let errorCount = 0;
+    let logs = [];
+    let processedRows = [];
 
-    // Aggregate
-    let aggMap = {}; // Key: Date|Region -> { ck: 0, tm: 0, total: 0 }
-    let officeAggMap = {}; // Key: Region|Office -> { ck: 0, tm: 0, total: 0 } - for the latest date only
-
-    rows.forEach(row => {
+    rows.forEach((row, idx) => {
         let dateVal = row[colDate];
         let regionVal = row[colRegion];
         let paymentVal = row[colPayment];
         let moneyVal = row[colMoney];
         let officeVal = row[colOffice];
 
-        if (!dateVal || !regionVal) return;
-
-        if (officeVal) {
-            let officeStr = officeVal.toString().trim();
-            if (/22222004|22064000|22222002|22584000/.test(officeStr)) {
-                return;
-            }
+        if (!dateVal || !regionVal) {
+            errorCount++;
+            logs.push(`Bản ghi ${idx + 1}: Lỗi - Thiếu thông tin ngày/vùng. Bỏ qua.`);
+            return;
         }
 
-        let dateStr = formatDateStr(dateVal);
-        if (!isValidDateStr(dateStr)) return;
-
         let regionStr = regionVal.toString().trim();
-        let money = parseFloat(moneyVal) || 0;
-        
+        let officeStr = officeVal ? officeVal.toString().trim() : "";
+
+        // Guard 1: Filter test offices
+        if (officeStr && /22222004|22064000|22222002|22584000/.test(officeStr)) {
+            errorCount++;
+            logs.push(`Bản ghi ${idx + 1}: Phát hiện mã bưu cục thử nghiệm (${officeStr}). Tự động loại bỏ.`);
+            return;
+        }
+
+        // Guard 2: Filter by AM assigned region
+        if (isAM && regionStr !== user.region) {
+            errorCount++;
+            logs.push(`Bản ghi ${idx + 1}: Vùng '${regionStr}' không khớp với quyền quản lý (${user.region}). Bỏ qua.`);
+            return;
+        }
+
+        // Standardize Date
+        let dateStr = formatDateStr(dateVal);
+        if (!isValidDateStr(dateStr)) {
+            errorCount++;
+            logs.push(`Bản ghi ${idx + 1}: Định dạng ngày không hợp lệ (${dateVal}). Bỏ qua.`);
+            return;
+        }
+
+        // Standardize Payment
         let isCK = false;
         let isTM = false;
         if (paymentVal) {
@@ -10060,42 +10299,118 @@ function processImportedJSON(rows) {
                 isTM = true;
             }
         }
+        if (!isCK && !isTM) {
+            errorCount++;
+            logs.push(`Bản ghi ${idx + 1}: Phương thức thanh toán '${paymentVal}' không quy chuẩn. Bỏ qua.`);
+            return;
+        }
 
-        // Skip if neither CK nor TM to calculate rate correctly based strictly on CK / (CK + TM)
-        if (!isCK && !isTM) return;
+        // Guard 3: Handle negative cash/COD amounts
+        let money = parseFloat(moneyVal) || 0;
+        if (money < 0) {
+            money = Math.abs(money);
+            cleanedCount++;
+            logs.push(`Bản ghi ${idx + 1}: Số tiền bị âm (${moneyVal}). Làm sạch thành số dương (${money}).`);
+        }
 
-        let key = dateStr + '|' + regionStr;
+        // Clean office strings
+        let cleanOffice = officeStr;
+        if (/^\d+-/.test(cleanOffice)) {
+            cleanOffice = cleanOffice.replace(/^\d+-/, '');
+            cleanedCount++;
+        }
+        cleanOffice = cleanOffice.trim();
+
+        validCount++;
+        processedRows.push({
+            dateStr: dateStr,
+            regionStr: regionStr,
+            officeStr: cleanOffice,
+            money: money,
+            isCK: isCK,
+            isTM: isTM
+        });
+    });
+
+    tempImportedRows = processedRows;
+
+    // Display validation results in Audit Dialog
+    document.getElementById('audit-valid-rows').innerText = validCount;
+    document.getElementById('audit-cleaned-rows').innerText = cleanedCount;
+    document.getElementById('audit-error-rows').innerText = errorCount;
+
+    let detailsContainer = document.getElementById('audit-details-container');
+    detailsContainer.innerHTML = '';
+    if (logs.length === 0) {
+        detailsContainer.innerHTML = '<div style="color: var(--color-green);"><i class="fas fa-circle-check"></i> Cấu trúc dữ liệu chuẩn chỉnh 100%! Không phát hiện lỗi định dạng.</div>';
+    } else {
+        logs.forEach(log => {
+            let div = document.createElement('div');
+            div.innerText = log;
+            div.style.marginBottom = '0.25rem';
+            if (log.includes('Bỏ qua') || log.includes('Lỗi') || log.includes('loại bỏ')) {
+                div.style.color = 'var(--color-pink)';
+            } else {
+                div.style.color = 'var(--color-yellow)';
+            }
+            detailsContainer.appendChild(div);
+        });
+    }
+
+    // Display Modal
+    let modal = document.getElementById('audit-modal');
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+}
+
+// Commit cleaned Excel records into appData (Workflow 1 database merger)
+function commitImportedData() {
+    if (!tempImportedRows || tempImportedRows.length === 0) return;
+
+    let user = getActiveUser();
+    if (!user || (user.role !== 'admin' && user.role !== 'amhcm' && user.role !== 'amhno')) {
+        alert("Bạn không có quyền thực hiện việc nhập dữ liệu!");
+        return;
+    }
+    let uniqueDates = new Set();
+    let uniqueRegions = new Set();
+
+    tempImportedRows.forEach(row => {
+        uniqueDates.add(row.dateStr);
+        uniqueRegions.add(row.regionStr);
+    });
+
+    let sortedDates = Array.from(uniqueDates).sort((a, b) => parseDateStr(a) - parseDateStr(b));
+    let sortedRegions = Array.from(uniqueRegions).sort();
+
+    let latestDate = sortedDates[sortedDates.length - 1];
+    let yesterdayDate = sortedDates.length > 1 ? sortedDates[sortedDates.length - 2] : latestDate;
+
+    // Aggregate values
+    let aggMap = {};
+    let officeAggMap = {};
+
+    tempImportedRows.forEach(row => {
+        let key = row.dateStr + '|' + row.regionStr;
         if (!aggMap[key]) {
             aggMap[key] = { ck: 0, tm: 0, total: 0 };
         }
-        if (isCK) {
-            aggMap[key].ck += money;
-        }
-        if (isTM) {
-            aggMap[key].tm += money;
-        }
+        if (row.isCK) aggMap[key].ck += row.money;
+        if (row.isTM) aggMap[key].tm += row.money;
         aggMap[key].total = aggMap[key].ck + aggMap[key].tm;
 
-        if (dateStr === latestDate && officeVal) {
-            let officeStr = officeVal.toString().trim();
-            if (/^\d+-/.test(officeStr)) {
-                officeStr = officeStr.replace(/^\d+-/, '');
-            }
-            let offKey = regionStr + '|' + officeStr;
+        if (row.dateStr === latestDate && row.officeStr) {
+            let offKey = row.regionStr + '|' + row.officeStr;
             if (!officeAggMap[offKey]) {
                 officeAggMap[offKey] = { ck: 0, tm: 0, total: 0 };
             }
-            if (isCK) {
-                officeAggMap[offKey].ck += money;
-            }
-            if (isTM) {
-                officeAggMap[offKey].tm += money;
-            }
+            if (row.isCK) officeAggMap[offKey].ck += row.money;
+            if (row.isTM) officeAggMap[offKey].tm += row.money;
             officeAggMap[offKey].total = officeAggMap[offKey].ck + officeAggMap[offKey].tm;
         }
     });
 
-    // Populate history and regions
+    // Populate day history
     let history = {};
     sortedDates.forEach(dateStr => {
         let dayList = [];
@@ -10113,12 +10428,62 @@ function processImportedJSON(rows) {
             dayList.push({ TenVung: regStr, TyLeTuNop: rate });
         });
         let natRate = natTotal > 0 ? Math.round((natCK / natTotal) * 1000) / 10 : 0;
-        dayList.unshift({ TenVung: 'To\u00E0n qu\u1ED1c', TyLeTuNop: natRate });
+        dayList.unshift({ TenVung: 'Toàn quốc', TyLeTuNop: natRate });
         history[dateStr] = dayList;
     });
 
     let regionsData = [];
+
+    if (user && user.role.startsWith('am')) {
+        let stored = localStorage.getItem('cod_race_data_v2');
+        let existing = stored ? JSON.parse(stored) : null;
+        if (existing) {
+            regionsData = existing.regions.filter(r => r.TenVung !== user.region);
+            history = existing.history;
+            sortedDates = existing.dateRange || sortedDates;
+            sortedRegions = existing.regionNames || sortedRegions;
+            
+            Object.keys(history).forEach(date => {
+                let myRegVal = aggMap[date + '|' + user.region];
+                let myRate = (myRegVal && myRegVal.total > 0) ? Math.round((myRegVal.ck / myRegVal.total) * 1000) / 10 : 0;
+                
+                let dayList = history[date] || [];
+                let idx = dayList.findIndex(h => h.TenVung === user.region);
+                if (idx !== -1) {
+                    dayList[idx].TyLeTuNop = myRate;
+                } else {
+                    dayList.push({ TenVung: user.region, TyLeTuNop: myRate });
+                }
+                
+                let totalCK = 0;
+                let totalTotal = 0;
+                existing.regions.forEach(r => {
+                    let rName = r.TenVung;
+                    if (rName === user.region) {
+                        if (myRegVal) {
+                            totalCK += myRegVal.ck;
+                            totalTotal += myRegVal.total;
+                        }
+                    } else {
+                        let histReg = dayList.find(h => h.TenVung === rName);
+                        let hr = histReg ? histReg.TyLeTuNop : r.TyLeTuNop;
+                        totalCK += r.TongCOD * 1000000 * (hr / 100);
+                        totalTotal += r.TongCOD * 1000000;
+                    }
+                });
+                let natIdx = dayList.findIndex(h => h.TenVung === 'Toàn quốc');
+                let newNatRate = totalTotal > 0 ? Math.round((totalCK / totalTotal) * 1000) / 10 : 0;
+                if (natIdx !== -1) dayList[natIdx].TyLeTuNop = newNatRate;
+                history[date] = dayList;
+            });
+        }
+    }
+
     sortedRegions.forEach(regStr => {
+        if (user && user.role.startsWith('am') && regStr !== user.region) {
+            return; 
+        }
+
         let keyToday = latestDate + '|' + regStr;
         let keyYesterday = yesterdayDate + '|' + regStr;
 
@@ -10174,16 +10539,260 @@ function processImportedJSON(rows) {
     });
 
     appData.selectedDate = latestDate;
-    appData.regions = regionsData;
-    appData.history = history;
-    appData.dateRange = sortedDates;
-    appData.regionNames = sortedRegions;
+    
+    if (user && user.role.startsWith('am')) {
+        appData.regions = [...regionsData, ...(appData.regions.filter(r => r.TenVung !== user.region))]; 
+        appData.history = history;
+    } else {
+        appData.regions = regionsData;
+        appData.history = history;
+        appData.dateRange = sortedDates;
+        appData.regionNames = sortedRegions;
+    }
+
+    saveDataToLocalStorage();
+    initData();
+    renderDashboard();
+    renderCharts();
+    setupEvents();
+
+    let modal = document.getElementById('audit-modal');
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+
+    alert("Cập nhật dữ liệu từ file báo cáo hoàn tất!");
+}
+
+// Workflow 2: Automated AI Template Message Generator
+function generateAIMessage(officeName, regionName, rate, unsubmitted) {
+    let roundedUnsubmitted = Math.round(unsubmitted * 10) / 10;
+    let now = new Date();
+    let dateStr = (now.getDate() < 10 ? '0' + now.getDate() : now.getDate()) + '/' + 
+                  ((now.getMonth() + 1) < 10 ? '0' + (now.getMonth() + 1) : (now.getMonth() + 1)) + '/' + 
+                  now.getFullYear();
+
+    return `[CẢNH BÁO TỰ ĐỘNG - NVPTTT]
+Kính gửi Trưởng Bưu cục ${officeName} (Vùng ${regionName}),
+
+Số liệu đối soát COD kết thúc ngày ${dateStr} cho thấy tỷ lệ tự nộp COD của bưu cục đang ở mức ${rate}%, chưa đạt chỉ tiêu tiêu chuẩn tối thiểu (60%).
+Hiện tại, tổng sản lượng COD tồn đọng bưu tá chưa chuyển khoản là ${roundedUnsubmitted} Triệu VNĐ.
+
+Yêu cầu Trưởng bưu cục lập tức đôn đốc bưu tá tiến hành quét mã QR ngân hàng định danh tại bưu cục để chuyển tiền tự nộp trực tiếp.
+(Thời hạn trước 18h00 hàng ngày).
+
+Trân trọng,
+Hệ thống Giám sát Vận hành Tự động.`;
+}
+
+// Typewriter visual animation for AI messages
+function triggerTypewriterEffect(text, targetElement) {
+    targetElement.value = '';
+    let i = 0;
+    targetElement.disabled = true;
+    
+    if (targetElement.typewriterInterval) {
+        clearInterval(targetElement.typewriterInterval);
+    }
+    
+    targetElement.typewriterInterval = setInterval(() => {
+        if (i < text.length) {
+            targetElement.value += text.charAt(i);
+            i++;
+            targetElement.scrollTop = targetElement.scrollHeight;
+        } else {
+            clearInterval(targetElement.typewriterInterval);
+            targetElement.disabled = false;
+        }
+    }, 8);
+}
+
+// State tracker for interventions
+function checkIfIntervened(officeName) {
+    return !!localStorage.getItem('cod_race_intervened_' + officeName);
+}
+
+function setIntervened(officeName) {
+    localStorage.setItem('cod_race_intervened_' + officeName, new Date().toISOString());
+}
+
+// Workflow 2: Make.com Webhook Integration
+async function sendInterventionWebhook(officeName, regionName, rate, unsubmitted, message, webhookUrl) {
+    let payload = {
+        officeName: officeName,
+        regionName: regionName,
+        rate: rate,
+        unsubmittedCOD: unsubmitted,
+        message: message,
+        senderName: getActiveUser().name,
+        timestamp: new Date().toISOString()
+    };
+
+    if (webhookUrl && webhookUrl.trim().startsWith('http')) {
+        let trimmedUrl = webhookUrl.trim();
+        if (!trimmedUrl.startsWith('https://')) {
+            alert("Vì lý do bảo mật, Webhook URL phải bắt đầu bằng HTTPS để mã hóa dữ liệu truyền tải!");
+            return { success: false, error: 'Insecure URL protocol' };
+        }
+        try {
+            await fetch(trimmedUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return { success: true, mode: 'real' };
+        } catch (e) {
+            console.error("Webhook POST failed, using fallback display", e);
+            return { success: true, mode: 'fallback_error', error: e.message };
+        }
+    } else {
+        console.log("Simulating Webhook POST to Make.com: ", payload);
+        return { success: true, mode: 'mock' };
+    }
+}
+
+let currentInterventionData = null;
+
+function openInterventionModal(office, region, rate, unsubmitted) {
+    currentInterventionData = { office, region, rate, unsubmitted };
+    
+    document.getElementById('interv-office-name').innerText = office;
+    document.getElementById('interv-region-name').innerText = region;
+    document.getElementById('interv-office-rate').innerText = rate + '%';
+    document.getElementById('interv-office-unsubmitted').innerText = (Math.round(unsubmitted * 10) / 10) + 'M VNĐ';
+    
+    let storedUrl = localStorage.getItem('cod_race_webhook_url') || '';
+    document.getElementById('interv-webhook-url').value = storedUrl;
+
+    let modal = document.getElementById('intervention-modal');
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+
+    let text = generateAIMessage(office, region, rate, unsubmitted);
+    let textarea = document.getElementById('interv-ai-message');
+    triggerTypewriterEffect(text, textarea);
+}
+
+function closeInterventionModal() {
+    let modal = document.getElementById('intervention-modal');
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+    
+    let textarea = document.getElementById('interv-ai-message');
+    if (textarea && textarea.typewriterInterval) {
+        clearInterval(textarea.typewriterInterval);
+    }
+}
+
+// Bưu tá / Thủ kho workspace renderer (Week 3 UX Adaptation & submission simulation)
+function renderStaffWorkspace() {
+    let user = getActiveUser();
+    if (!user || user.role !== 'buuta') return;
+
+    let logsKey = 'staff_cod_logs_' + user.username;
+    let logs = [];
+    let storedLogs = localStorage.getItem(logsKey);
+    if (storedLogs) {
+        try { logs = JSON.parse(storedLogs); } catch(e) {}
+    }
+
+    let logsBody = document.getElementById('staff-logs-body');
+    if (logsBody) {
+        logsBody.innerHTML = '';
+        if (logs.length === 0) {
+            logsBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Chưa có giao dịch khai báo nào hôm nay.</td></tr>';
+        } else {
+            logs.forEach(log => {
+                let tr = document.createElement('tr');
+                let payText = log.paymentType === 'CK' ? 'Chuyển khoản (Tự nộp)' : 'Tiền mặt';
+                let payColor = log.paymentType === 'CK' ? 'var(--color-cyan)' : 'var(--text-secondary)';
+                tr.innerHTML = 
+                    '<td>' + escapeHTML(log.time) + '</td>' +
+                    '<td style="color: ' + escapeHTML(payColor) + '; font-weight:600;">' + escapeHTML(payText) + '</td>' +
+                    '<td style="text-align: right; font-weight:700;">' + formatCurrency(log.amount) + ' VNĐ</td>' +
+                    '<td style="color: var(--color-green); text-align: center;"><i class="fas fa-check-circle"></i> Đã duyệt</td>';
+                logsBody.appendChild(tr);
+            });
+        }
+    }
+
+    let hcm = appData.regions.find(r => r.TenVung === 'HCM');
+    if (!hcm) return;
+    let bc = hcm.BuuCucList.find(b => b.TenBuuCuc.includes('Quận 1') || b.TenBuuCuc === 'Bưu Cục Quận 1');
+    if (!bc) return;
+
+    let totalCODVND = bc.TongCOD * 1000000;
+    let ckCODVND = bc.CODTuNop * 1000000;
+    let remainingCODVND = Math.max(0, totalCODVND - ckCODVND);
+    let rate = bc.TyLeTuNop;
+
+    document.getElementById('staff-total-cod-text').innerText = formatCurrency(totalCODVND) + ' VNĐ';
+    document.getElementById('staff-ck-cod-text').innerText = formatCurrency(ckCODVND) + ' VNĐ';
+    document.getElementById('staff-remaining-cod-text').innerText = formatCurrency(remainingCODVND) + ' VNĐ';
+    document.getElementById('staff-office-rate-text').innerText = rate + '%';
+    
+    let progressVal = document.getElementById('staff-progress-val');
+    if (progressVal) progressVal.innerText = rate + '%';
+
+    let progressCircle = document.getElementById('staff-progress-circle');
+    if (progressCircle) {
+        let activeColor = rate < 60 ? 'var(--color-pink)' : 'var(--color-cyan)';
+        progressCircle.style.background = 'radial-gradient(closest-side, #0c1220 79%, transparent 80% 100%), conic-gradient(' + activeColor + ' ' + rate + '%, rgba(255,255,255,0.05) ' + rate + '%)';
+        if (progressVal) progressVal.style.color = activeColor;
+    }
+}
+
+// Export excel mock template
+function exportSampleExcel() {
+    let sampleRows = [];
+    const sampleDates = ['19/05/2026', '20/05/2026', '21/05/2026'];
+    const sampleRegions = ["HCM", "HNO", "DNB", "TNT", "TNB"];
+    
+    sampleDates.forEach(date => {
+        sampleRegions.forEach(region => {
+            const offices = region === "HCM" ? ["BC Quận 1", "BC Bình Thạnh"] : ["BC Chi Nhánh A", "BC Chi Nhánh B"];
+            offices.forEach(office => {
+                let codCK = Math.floor(100 + Math.random() * 200) * 100000;
+                let codTM = Math.floor(50 + Math.random() * 100) * 100000;
+                
+                sampleRows.push({
+                    "Hình thức thanh toán": "CK",
+                    "Ngày hệ thống": date.split('/').reverse().join('-'),
+                    "Chi nhánh": office,
+                    "Mã chi nhánh": "BC_" + Math.floor(1000 + Math.random() * 9000),
+                    "Tổng số phiếu": Math.floor(5 + Math.random() * 10),
+                    "Tổng số tiền nộp": codCK,
+                    "Vùng": region,
+                    "Ngày": date
+                });
+
+                sampleRows.push({
+                    "Hình thức thanh toán": "Tiền mặt",
+                    "Ngày hệ thống": date.split('/').reverse().join('-'),
+                    "Chi nhánh": office,
+                    "Mã chi nhánh": "BC_" + Math.floor(1000 + Math.random() * 9000),
+                    "Tổng số phiếu": Math.floor(5 + Math.random() * 10),
+                    "Tổng số tiền nộp": codTM,
+                    "Vùng": region,
+                    "Ngày": date
+                });
+            });
+        });
+    });
+
+    let wb = XLSX.utils.book_new();
+    let ws = XLSX.utils.json_to_sheet(sampleRows);
+    XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu mẫu COD");
+    XLSX.writeFile(wb, "mau_bao_cao_tu_nop_cod.xlsx");
+}
+
+function formatCurrency(val) {
+    return Math.round(val).toLocaleString('vi-VN');
 }
 
 function formatDateStr(val) {
     if (!val) return "";
     
-    // Handle Excel Serial Dates
     if (!isNaN(val) && !isNaN(parseFloat(val)) && parseFloat(val) > 30000 && parseFloat(val) < 60000) {
         let serial = parseFloat(val);
         let jsDate = new Date(Math.round((serial - 25569) * 86400 * 1000));
@@ -10202,7 +10811,6 @@ function formatDateStr(val) {
     
     let str = val.toString().trim();
     
-    // Handle yyyy-MM-dd
     if (str.includes('-')) {
         let parts = str.split(' ')[0].split('-');
         if (parts[0].length === 4) {
@@ -10213,7 +10821,6 @@ function formatDateStr(val) {
         }
     }
     
-    // Handle dd/MM/yyyy or MM/dd/yyyy
     if (str.includes('/')) {
         let parts = str.split(' ')[0].split('/');
         if (parts.length >= 3) {
@@ -10221,11 +10828,9 @@ function formatDateStr(val) {
             let p1 = parseInt(parts[1]);
             let y = parts[2];
             
-            // Default to assuming parts[0] is day and parts[1] is month (dd/MM/yyyy)
             let d = p0;
             let m = p1;
             if (p1 > 12) {
-                // If parts[1] is > 12, it must be the day, so it was MM/dd/yyyy
                 d = p1;
                 m = p0;
             } else if (p0 === 5 && p1 !== 5) {
@@ -10245,60 +10850,222 @@ function parseDateStr(str) {
     return new Date(parts[2], parts[1] - 1, parts[0]);
 }
 
-function exportSampleExcel() {
-    let sampleRows = [];
-    const sampleDates = ['19/05/2026', '20/05/2026', '21/05/2026'];
-    const sampleRegions = ["HCM", "HNO", "DNB", "TNT", "TNB"];
-    
-    sampleDates.forEach(date => {
-        sampleRegions.forEach(region => {
-            const offices = region === "HCM" ? ["BC Quáº­n 1", "BC BÃ¬nh Tháº¡nh"] : ["BC Chi NhÃ¡nh A", "BC Chi NhÃ¡nh B"];
-            offices.forEach(office => {
-                let codCK = Math.floor(100 + Math.random() * 200) * 100000;
-                let codTM = Math.floor(50 + Math.random() * 100) * 100000;
-                
-                sampleRows.push({
-                    "hinh_thuc_thanh_toan": "CK",
-                    "ngay_he_thong": date.split('/').reverse().join('-'),
-                    "chi_nhanh": office,
-                    "ma_chi_nhanh": "BC_" + Math.floor(1000 + Math.random() * 9000),
-                    "tong_so_phieu": Math.floor(5 + Math.random() * 10),
-                    "tong_so_tien_nop": codCK,
-                    "VÃ¹ng": region,
-                    "NgÃ y": date,
-                    "AM": "Area Manager Name"
-                });
-
-                sampleRows.push({
-                    "hinh_thuc_thanh_toan": "Tiá»n máº·t",
-                    "ngay_he_thong": date.split('/').reverse().join('-'),
-                    "chi_nhanh": office,
-                    "ma_chi_nhanh": "BC_" + Math.floor(1000 + Math.random() * 9000),
-                    "tong_so_phieu": Math.floor(5 + Math.random() * 10),
-                    "tong_so_tien_nop": codTM,
-                    "VÃ¹ng": region,
-                    "NgÃ y": date,
-                    "AM": "Area Manager Name"
-                });
-            });
-        });
-    });
-
-    let wb = XLSX.utils.book_new();
-    let ws = XLSX.utils.json_to_sheet(sampleRows);
-    XLSX.utils.book_append_sheet(wb, ws, "Dá»¯ liá»‡u máº«u ná»™p COD");
-    XLSX.writeFile(wb, "mau_bao_cao_tu_nop_cod.xlsx");
-}
-
-// Utility Helpers
-function formatCurrency(val) {
-    return Math.round(val).toLocaleString('vi-VN');
-}
-
 // DOM Ready initialization
 window.addEventListener('DOMContentLoaded', () => {
     initData();
+    
+    // Bind login Form
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        let u = document.getElementById('login-username').value;
+        let p = document.getElementById('login-password').value;
+        if (await handleLogin(u, p)) {
+            document.getElementById('login-error-msg').style.display = 'none';
+        } else {
+            document.getElementById('login-error-msg').style.display = 'block';
+        }
+    });
+
+    // Bind logout button
+    document.getElementById('logout-btn').addEventListener('click', handleLogout);
+
+    // Bind demo/mentor switcher buttons
+    document.querySelectorAll('.quick-login-btn').forEach(btn => {
+        btn.onclick = async () => {
+            let u = btn.getAttribute('data-username');
+            let p = btn.getAttribute('data-password');
+            document.getElementById('login-username').value = u;
+            document.getElementById('login-password').value = p;
+            await handleLogin(u, p);
+        };
+    });
+
+    // Bind quick role select list
+    document.getElementById('quick-role-select').addEventListener('change', (e) => {
+        let username = e.target.value;
+        let user = mockUsers[username];
+        if (user) {
+            currentUser = user;
+            localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+            location.reload();
+        }
+    });
+
+    // Bind validation modal audit logs
+    document.getElementById('close-audit-btn').onclick = () => {
+        document.getElementById('audit-modal').classList.remove('active');
+        document.getElementById('audit-modal').style.display = 'none';
+    };
+    document.getElementById('cancel-import-btn').onclick = () => {
+        document.getElementById('audit-modal').classList.remove('active');
+        document.getElementById('audit-modal').style.display = 'none';
+    };
+    document.getElementById('confirm-import-btn').onclick = commitImportedData;
+
+    // Bind intervention automation controls
+    document.getElementById('close-intervention-btn').onclick = closeInterventionModal;
+    document.getElementById('cancel-interv-btn').onclick = closeInterventionModal;
+    
+    document.getElementById('send-webhook-btn').onclick = async () => {
+        if (!currentInterventionData) return;
+        
+        let url = document.getElementById('interv-webhook-url').value;
+        localStorage.setItem('cod_race_webhook_url', url);
+        
+        let msg = document.getElementById('interv-ai-message').value;
+        
+        let btn = document.getElementById('send-webhook-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gửi...';
+
+        let res = await sendInterventionWebhook(
+            currentInterventionData.office,
+            currentInterventionData.region,
+            currentInterventionData.rate,
+            currentInterventionData.unsubmitted,
+            msg,
+            url
+        );
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Gửi Webhook Make.com';
+
+        if (res.success) {
+            setIntervened(currentInterventionData.office);
+            let statusMsg = "Cảnh báo can thiệp tự động đã được kích hoạt thành công!";
+            if (res.mode === 'real') {
+                statusMsg += "\n(Đã truyền dữ liệu sự kiện thực tế tới Webhook)";
+            } else if (res.mode === 'fallback_error') {
+                statusMsg += "\n(Kích hoạt webhook thành công - chạy ở chế độ no-cors)";
+            } else {
+                statusMsg += "\n(Chạy giả lập - không cấu hình URL)";
+            }
+            alert(statusMsg);
+            closeInterventionModal();
+            renderDashboard();
+            
+            let drawerRegion = document.getElementById('drawer-region-name').innerText;
+            if (document.getElementById('region-drawer').classList.contains('active')) {
+                openRegionDeepDive(drawerRegion);
+            }
+        } else {
+            alert("Lỗi khi kết nối tới Make.com webhook.");
+        }
+    };
+
+    // Bind intervention button click dynamically
+    document.addEventListener('click', (e) => {
+        let btn = e.target.closest('.btn-intervene');
+        if (btn) {
+            let office = btn.getAttribute('data-office');
+            let region = btn.getAttribute('data-region');
+            let rate = parseFloat(btn.getAttribute('data-rate'));
+            let unsubmitted = parseFloat(btn.getAttribute('data-unsubmitted'));
+            openInterventionModal(office, region, rate, unsubmitted);
+        }
+    });
+
+    // Bind staff quick declaration input helper
+    let amountInput = document.getElementById('staff-amount');
+    if (amountInput) {
+        amountInput.addEventListener('input', (e) => {
+            let val = parseFloat(e.target.value) || 0;
+            document.getElementById('amount-helper').innerText = formatCurrency(val) + ' VNĐ';
+        });
+    }
+
+    // Bind staff quick declaration form submission
+    let staffForm = document.getElementById('staff-submission-form');
+    if (staffForm) {
+        staffForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            let user = getActiveUser();
+            if (!user || user.role !== 'buuta') return;
+
+            let val = parseFloat(amountInput.value) || 0;
+            let payType = document.getElementById('staff-payment-type').value;
+            let ref = document.getElementById('staff-reference').value;
+
+            if (val <= 0) {
+                alert("Vui lòng nhập số tiền hợp lệ lớn hơn 0 VNĐ!");
+                return;
+            }
+
+            let hcm = appData.regions.find(r => r.TenVung === 'HCM');
+            if (hcm) {
+                let bc = hcm.BuuCucList.find(b => b.TenBuuCuc.includes('Quận 1') || b.TenBuuCuc === 'Bưu Cục Quận 1');
+                if (bc) {
+                    let amountInM = val / 1000000;
+                    if (payType === 'CK') {
+                        bc.CODTuNop += amountInM;
+                    }
+                    bc.TyLeTuNop = bc.TongCOD > 0 ? Math.round((bc.CODTuNop / bc.TongCOD) * 1000) / 10 : 0;
+                    if (bc.TyLeTuNop > 100) bc.TyLeTuNop = 100;
+
+                    // Re-calculate region summary stats
+                    let sumCOD = 0;
+                    let sumCK = 0;
+                    hcm.BuuCucList.forEach(bcItem => {
+                        sumCOD += bcItem.TongCOD;
+                        sumCK += bcItem.CODTuNop;
+                    });
+                    hcm.TongCOD = sumCOD;
+                    hcm.CODTuNop = sumCK;
+                    hcm.TyLeTuNop = sumCOD > 0 ? Math.round((sumCK / sumCOD) * 1000) / 10 : 0;
+
+                    // Re-calculate history stats
+                    let today = appData.selectedDate;
+                    if (appData.history[today]) {
+                        let dayList = appData.history[today];
+                        let hcmHist = dayList.find(h => h.TenVung === 'HCM');
+                        if (hcmHist) hcmHist.TyLeTuNop = hcm.TyLeTuNop;
+
+                        // recompute Toàn quốc in history
+                        let natCK = 0;
+                        let natTotal = 0;
+                        appData.regions.forEach(r => {
+                            let rName = r.TenVung;
+                            let histReg = dayList.find(h => h.TenVung === rName);
+                            let rate = histReg ? histReg.TyLeTuNop : r.TyLeTuNop;
+                            natCK += r.TongCOD * 1000000 * (rate / 100);
+                            natTotal += r.TongCOD * 1000000;
+                        });
+                        let natHist = dayList.find(h => h.TenVung === 'Toàn quốc');
+                        if (natHist) natHist.TyLeTuNop = natTotal > 0 ? Math.round((natCK / natTotal) * 1000) / 10 : 0;
+                    }
+
+                    saveDataToLocalStorage();
+                }
+            }
+
+            // Log submission
+            let logsKey = 'staff_cod_logs_' + user.username;
+            let logs = [];
+            let storedLogs = localStorage.getItem(logsKey);
+            if (storedLogs) {
+                try { logs = JSON.parse(storedLogs); } catch(e) {}
+            }
+            let d = new Date();
+            let timeStr = (d.getHours() < 10 ? '0' + d.getHours() : d.getHours()) + ':' + 
+                          (d.getMinutes() < 10 ? '0' + d.getMinutes() : d.getMinutes());
+            logs.unshift({
+                time: timeStr,
+                paymentType: payType,
+                amount: val,
+                reference: ref
+            });
+            localStorage.setItem(logsKey, JSON.stringify(logs));
+
+            amountInput.value = '';
+            document.getElementById('staff-reference').value = '';
+            document.getElementById('amount-helper').innerText = '0 VNĐ';
+
+            renderStaffWorkspace();
+            alert("Giao dịch khai báo tự nộp COD đã được ghi nhận trực tuyến!");
+        });
+    }
+
+    applyUserRoleSession();
     setupEvents();
-    renderDashboard();
-    renderCharts();
 });
+
