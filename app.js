@@ -11069,6 +11069,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // Google GHN Sign-in simulation & parsing (SEC-03 / UX SSO support)
 const ghnEmailMappings = {
+    "dangnh@ghn.vn": { role: "amhcm", region: "HCM", name: "Nguyễn Hải Đăng" },
     "haidang@ghn.vn": { role: "amhcm", region: "HCM", name: "Nguyễn Hải Đăng" },
     "admin@ghn.vn": { role: "admin", region: "Toàn quốc", name: "Admin Nguyễn Hải Đăng" }
 };
