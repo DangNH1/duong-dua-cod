@@ -1,4 +1,4 @@
-﻿const appData = {
+const appData = {
     "selectedDate":  "21/05/2026",
     "history":  {
                     "01/05/2026":  [
@@ -9349,6 +9349,7 @@ async function sha256(message) {
 
 // Mock User Database (Week 3 Security) - Storing hashed passwords instead of plaintext
 const mockUsers = {
+    "1017": { username: "1017", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "amhcm", name: "Nguyễn Hải Đăng", region: "HCM" },
     "admin": { username: "admin", passwordHash: "240eb51856134e7a177b2d47b59e4bb1ec148b6c161973e488d3eec9d3000676", role: "admin", name: "Trần Thế Anh", region: "Toàn quốc" },
     "amhcm": { username: "amhcm", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhcm", name: "Nguyễn Văn Hùng", region: "HCM" },
     "amhno": { username: "amhno", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhno", name: "Phạm Minh Hoàng", region: "HNO" },
@@ -9478,11 +9479,8 @@ function getFilteredRegions() {
     if (!user || user.role === 'admin' || user.role === 'guest') {
         return appData.regions || [];
     }
-    if (user.role === 'amhcm') {
-        return (appData.regions || []).filter(r => r.TenVung === 'HCM');
-    }
-    if (user.role === 'amhno') {
-        return (appData.regions || []).filter(r => r.TenVung === 'HNO');
+    if (user.role.startsWith('am')) {
+        return (appData.regions || []).filter(r => r.TenVung === user.region);
     }
     return appData.regions || [];
 }
@@ -9492,8 +9490,7 @@ function getFilteredRegionNames() {
     if (!user || user.role === 'admin' || user.role === 'guest') {
         return regionNames || [];
     }
-    if (user.role === 'amhcm') return ['HCM'];
-    if (user.role === 'amhno') return ['HNO'];
+    if (user.role.startsWith('am')) return [user.region];
     return regionNames || [];
 }
 
