@@ -9428,58 +9428,72 @@ function handleLogout() {
 
 // Security Routing Guard & View Adaptations
 function applyUserRoleSession() {
-    let user = getActiveUser();
-    
-    let loginOverlay = document.getElementById('login-overlay');
-    let profileSection = document.getElementById('user-profile-section');
-    let userNameEl = document.getElementById('header-user-name');
-    let userRoleEl = document.getElementById('header-user-role');
-    let testerSwitcher = document.getElementById('tester-switcher');
-    let adminView = document.getElementById('admin-view');
-    let staffView = document.getElementById('staff-view');
-    let resetBtn = document.getElementById('reset-btn');
-    let dropZone = document.getElementById('drop-zone');
-
-    if (!user) {
-        if (loginOverlay) loginOverlay.style.display = 'flex';
-        if (profileSection) profileSection.style.display = 'none';
-        if (testerSwitcher) testerSwitcher.style.display = 'none';
-        return;
-    }
-
-    if (loginOverlay) loginOverlay.style.display = 'none';
-    if (profileSection) {
-        profileSection.style.display = 'flex';
-        userNameEl.innerText = user.name;
-        userRoleEl.innerText = user.role === 'admin' ? 'Admin' : (user.role.startsWith('am') ? 'Area Manager' : user.role.toUpperCase());
-    }
-    if (testerSwitcher) {
-        testerSwitcher.style.display = 'flex';
-        let quickSelect = document.getElementById('quick-role-select');
-        if (quickSelect) quickSelect.value = user.username;
-    }
-
-    // Reset guarding classes
-    if (dropZone) dropZone.classList.remove('panel-locked');
-    if (resetBtn) resetBtn.style.display = 'inline-flex';
-
-    if (user.role === 'buuta') {
-        if (adminView) adminView.style.display = 'none';
-        if (staffView) staffView.style.display = 'block';
-        renderStaffWorkspace();
-    } else {
-        if (adminView) adminView.style.display = 'block';
-        if (staffView) staffView.style.display = 'none';
+    try {
+        let user = getActiveUser();
         
-        if (user.role === 'guest') {
-            if (dropZone) dropZone.classList.add('panel-locked');
-            if (resetBtn) resetBtn.style.display = 'none';
-        } else if (user.role.startsWith('am')) {
-            if (resetBtn) resetBtn.style.display = 'none';
+        let loginOverlay = document.getElementById('login-overlay');
+        let profileSection = document.getElementById('user-profile-section');
+        let userNameEl = document.getElementById('header-user-name');
+        let userRoleEl = document.getElementById('header-user-role');
+        let testerSwitcher = document.getElementById('tester-switcher');
+        let adminView = document.getElementById('admin-view');
+        let staffView = document.getElementById('staff-view');
+        let resetBtn = document.getElementById('reset-btn');
+        let dropZone = document.getElementById('drop-zone');
+
+        if (!user) {
+            if (loginOverlay) loginOverlay.style.display = 'flex';
+            if (profileSection) profileSection.style.display = 'none';
+            if (testerSwitcher) testerSwitcher.style.display = 'none';
+            return;
         }
-        
-        renderDashboard();
-        renderCharts();
+
+        if (loginOverlay) loginOverlay.style.display = 'none';
+        if (profileSection) {
+            profileSection.style.display = 'flex';
+            userNameEl.innerText = user.name;
+            userRoleEl.innerText = user.role === 'admin' ? 'Admin' : (user.role.startsWith('am') ? 'Area Manager' : user.role.toUpperCase());
+        }
+        if (testerSwitcher) {
+            testerSwitcher.style.display = 'flex';
+            let quickSelect = document.getElementById('quick-role-select');
+            if (quickSelect) {
+                let hasOption = Array.from(quickSelect.options).some(opt => opt.value === user.username);
+                if (!hasOption) {
+                    let opt = document.createElement('option');
+                    opt.value = user.username;
+                    opt.innerText = user.name + " (" + user.username + ")";
+                    quickSelect.appendChild(opt);
+                }
+                quickSelect.value = user.username;
+            }
+        }
+
+        // Reset guarding classes
+        if (dropZone) dropZone.classList.remove('panel-locked');
+        if (resetBtn) resetBtn.style.display = 'inline-flex';
+
+        if (user.role === 'buuta') {
+            if (adminView) adminView.style.display = 'none';
+            if (staffView) staffView.style.display = 'block';
+            renderStaffWorkspace();
+        } else {
+            if (adminView) adminView.style.display = 'block';
+            if (staffView) staffView.style.display = 'none';
+            
+            if (user.role === 'guest') {
+                if (dropZone) dropZone.classList.add('panel-locked');
+                if (resetBtn) resetBtn.style.display = 'none';
+            } else if (user.role.startsWith('am')) {
+                if (resetBtn) resetBtn.style.display = 'none';
+            }
+            
+            renderDashboard();
+            renderCharts();
+        }
+    } catch (error) {
+        console.error("Error in applyUserRoleSession:", error);
+        alert("Lỗi phân quyền hệ thống: " + error.message + "\nStack: " + error.stack);
     }
 }
 
@@ -10859,7 +10873,8 @@ function parseDateStr(str) {
 
 // DOM Ready initialization
 window.addEventListener('DOMContentLoaded', () => {
-    initData();
+    try {
+        initData();
     
     // Bind Secure Email & Password Login Form
     let loginEmailForm = document.getElementById('login-email-form');
@@ -11107,8 +11122,12 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    applyUserRoleSession();
-    setupEvents();
+        applyUserRoleSession();
+        setupEvents();
+    } catch (e) {
+        console.error("DOM Ready initialization failed:", e);
+        alert("Khởi tạo hệ thống thất bại: " + e.message + "\nStack: " + e.stack);
+    }
 });
 
 // Google GHN Sign-in simulation & parsing (SEC-03 / UX SSO support)
