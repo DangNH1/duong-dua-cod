@@ -10851,40 +10851,54 @@ function parseDateStr(str) {
 window.addEventListener('DOMContentLoaded', () => {
     initData();
     
-    // Bind login Form
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        let u = document.getElementById('login-username').value;
-        let p = document.getElementById('login-password').value;
-        if (await handleLogin(u, p)) {
-            document.getElementById('login-error-msg').style.display = 'none';
-        } else {
-            document.getElementById('login-error-msg').style.display = 'block';
-        }
-    });
+    // Bind Google SSO Login Form
+    let googleLoginForm = document.getElementById('google-login-form');
+    if (googleLoginForm) {
+        googleLoginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            let emailUser = document.getElementById('google-login-email-input').value.trim();
+            if (!emailUser) return;
+            
+            let fullEmail = emailUser;
+            if (!fullEmail.includes('@')) {
+                fullEmail = emailUser + '@ghn.vn';
+            }
+            
+            if (handleGoogleLogin(fullEmail)) {
+                document.getElementById('google-login-main-error').style.display = 'none';
+            } else {
+                document.getElementById('google-login-main-error').style.display = 'block';
+            }
+        });
+    }
 
     // Bind logout button
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
-    // Bind demo/mentor switcher buttons
-    document.querySelectorAll('.quick-login-btn').forEach(btn => {
-        btn.onclick = async () => {
-            let u = btn.getAttribute('data-username');
-            let p = btn.getAttribute('data-password');
-            document.getElementById('login-username').value = u;
-            document.getElementById('login-password').value = p;
-            await handleLogin(u, p);
+    // Bind demo/mentor switcher buttons (Google SSO formatted)
+    document.querySelectorAll('.google-quick-btn-main').forEach(btn => {
+        btn.onclick = () => {
+            let email = btn.getAttribute('data-email');
+            if (email.endsWith('@ghn.vn')) {
+                handleGoogleLogin(email);
+            } else {
+                alert("Bảo mật hệ thống: Yêu cầu đăng nhập bằng email @ghn.vn!");
+            }
         };
     });
 
-    // Bind quick role select list
+    // Bind quick role select list in header
     document.getElementById('quick-role-select').addEventListener('change', (e) => {
-        let username = e.target.value;
-        let user = mockUsers[username];
-        if (user) {
-            currentUser = user;
-            localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
-            location.reload();
+        let val = e.target.value;
+        if (val.includes('@')) {
+            handleGoogleLogin(val);
+        } else {
+            let user = mockUsers[val];
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+                location.reload();
+            }
         }
     });
 
@@ -11064,7 +11078,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     applyUserRoleSession();
     setupEvents();
-    setupGoogleLoginEvents();
 });
 
 // Google GHN Sign-in simulation & parsing (SEC-03 / UX SSO support)
@@ -11135,58 +11148,5 @@ function handleGoogleLogin(email) {
     return true;
 }
 
-// Bind Google SSO Modal Actions
-function setupGoogleLoginEvents() {
-    let googleBtn = document.getElementById('google-login-btn');
-    let googleModal = document.getElementById('google-login-modal');
-    let closeBtn = document.getElementById('close-google-modal-btn');
-    
-    if (googleBtn && googleModal) {
-        googleBtn.addEventListener('click', () => {
-            googleModal.style.display = 'flex';
-            googleModal.classList.add('active');
-            document.getElementById('google-login-error').style.display = 'none';
-        });
-    }
-    
-    if (closeBtn && googleModal) {
-        closeBtn.addEventListener('click', () => {
-            googleModal.style.display = 'none';
-            googleModal.classList.remove('active');
-        });
-    }
-    
-    let emailForm = document.getElementById('google-email-form');
-    if (emailForm) {
-        emailForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            let emailUser = document.getElementById('google-email-input').value.trim();
-            if (!emailUser) return;
-            
-            let fullEmail = emailUser;
-            if (!fullEmail.includes('@')) {
-                fullEmail = emailUser + '@ghn.vn';
-            }
-            
-            if (handleGoogleLogin(fullEmail)) {
-                googleModal.style.display = 'none';
-                googleModal.classList.remove('active');
-            } else {
-                document.getElementById('google-login-error').style.display = 'block';
-            }
-        });
-    }
-    
-    // Quick login buttons inside Google Modal
-    document.querySelectorAll('.google-quick-btn').forEach(btn => {
-        btn.onclick = () => {
-            let email = btn.getAttribute('data-email');
-            if (email.endsWith('@ghn.vn')) {
-                handleGoogleLogin(email);
-            } else {
-                alert("Bảo mật hệ thống: Yêu cầu đăng nhập bằng email @ghn.vn!");
-            }
-        };
-    });
-}
+// Google SSO Modal actions removed (Direct login form utilized)
 
