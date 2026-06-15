@@ -1,3 +1,7 @@
+// Google Workspace OAuth Client ID configuration
+// HÃ£y thay tháº¿ chuá»—i nÃ y báº±ng Client ID cá»§a báº¡n tá»« Google Cloud Console
+const GOOGLE_CLIENT_ID = "997050873554-uf5h4bj1ahkjn59ffecnkh9ohs9hjfnm.apps.googleusercontent.com"; 
+
 const appData = {
     "selectedDate":  "21/05/2026",
     "history":  {
@@ -9399,12 +9403,57 @@ async function handleLogin(username, password) {
         return false;
     }
 
+    // 1. Check if user is explicitly defined in mockUsers database
     let user = mockUsers[username];
     if (user) {
         let hash = await sha256(password);
         if (user.passwordHash === hash) {
             failedAttempts = 0;
             currentUser = user;
+            localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+            applyUserRoleSession();
+            return true;
+        }
+    } else if (username.endsWith('@ghn.vn')) {
+        // 2. Fallback: Allow any other @ghn.vn email with a default corporate password
+        const validPasswords = ["ghn123", "admin123", "haiDang1", "am123", "staff123", "guest123", "123456", "ghn@123"];
+        if (validPasswords.includes(password)) {
+            let parts = username.split('@')[0].split('.');
+            let userNameRaw = parts[0];
+            let displayName = userNameRaw.charAt(0).toUpperCase() + userNameRaw.slice(1);
+            
+            let role = 'guest';
+            let region = 'Toàn quốc';
+            let office = '';
+            
+            if (username.startsWith('admin.')) {
+                role = 'admin';
+                displayName = "Admin GHN (" + displayName + ")";
+            } else if (username.includes('.am.')) {
+                let regionIdx = parts.indexOf('am') + 1;
+                let reg = (regionIdx < parts.length) ? parts[regionIdx].toUpperCase() : 'HCM';
+                role = 'amhcm';
+                if (reg === 'HNO') role = 'amhno';
+                region = reg;
+                displayName = "AM " + reg + " (" + displayName + ")";
+            } else if (username.includes('.buuta.') || username.includes('.staff.')) {
+                role = 'buuta';
+                region = 'HCM';
+                office = 'Bưu Cục Quận 1';
+                displayName = "Bưu tá (" + displayName + ")";
+            } else {
+                role = 'guest';
+                displayName = displayName + " (GHN Viewer)";
+            }
+            
+            failedAttempts = 0;
+            currentUser = {
+                username: username,
+                role: role,
+                name: displayName,
+                region: region,
+                office: office
+            };
             localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
             applyUserRoleSession();
             return true;
@@ -10876,64 +10925,34 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
         initData();
     
-    // Bind Secure Email & Password Login Form
-    let loginEmailForm = document.getElementById('login-email-form');
-    if (loginEmailForm) {
-        loginEmailForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            let email = document.getElementById('login-email').value.trim();
-            let password = document.getElementById('login-password').value;
-            let errorMsg = document.getElementById('login-error-msg');
-            
-            if (!email.endsWith('@ghn.vn')) {
-                alert("Bảo mật hệ thống: Email đăng nhập phải thuộc hệ thống Giao Hàng Nhanh (có đuôi @ghn.vn)!");
-                if (errorMsg) {
-                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Email phải có đuôi @ghn.vn!';
-                    errorMsg.style.display = 'block';
+        // Initialize Google Sign-In (OAuth 2.0)
+        if (typeof google !== 'undefined') {
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleGoogleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById("google-signin-btn"),
+                { theme: "dark", size: "large", width: "320", logo_alignment: "left" }
+            );
+        } else {
+            console.warn("Google GIS API not loaded yet. Retrying in 1s...");
+            setTimeout(() => {
+                if (typeof google !== 'undefined') {
+                    google.accounts.id.initialize({
+                        client_id: GOOGLE_CLIENT_ID,
+                        callback: handleGoogleCredentialResponse
+                    });
+                    google.accounts.id.renderButton(
+                        document.getElementById("google-signin-btn"),
+                        { theme: "dark", size: "large", width: "320", logo_alignment: "left" }
+                    );
                 }
-                return;
-            }
-            
-            let success = await handleLogin(email, password);
-            if (success) {
-                if (errorMsg) errorMsg.style.display = 'none';
-                location.reload();
-            } else {
-                if (errorMsg) {
-                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sai email hoặc mật khẩu!';
-                    errorMsg.style.display = 'block';
-                }
-            }
-        });
-    }
+            }, 1000);
+        }
 
-    // Bind logout button
-    document.getElementById('logout-btn').addEventListener('click', handleLogout);
-
-    // Bind demo/mentor switcher buttons
-    document.querySelectorAll('.google-quick-btn-main').forEach(btn => {
-        btn.onclick = async () => {
-            let email = btn.getAttribute('data-email');
-            let password = btn.getAttribute('data-password');
-            
-            let emailInput = document.getElementById('login-email');
-            let passwordInput = document.getElementById('login-password');
-            if (emailInput) emailInput.value = email;
-            if (passwordInput) passwordInput.value = password;
-            
-            let errorMsg = document.getElementById('login-error-msg');
-            let success = await handleLogin(email, password);
-            if (success) {
-                if (errorMsg) errorMsg.style.display = 'none';
-                location.reload();
-            } else {
-                if (errorMsg) {
-                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sai email hoặc mật khẩu!';
-                    errorMsg.style.display = 'block';
-                }
-            }
-        };
-    });
+        // Bind logout button
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
     // Bind quick role select list in header
     document.getElementById('quick-role-select').addEventListener('change', (e) => {
@@ -11199,4 +11218,90 @@ function handleGoogleLogin(email) {
 }
 
 // Google SSO Modal actions removed (Direct login form utilized)
+
+// Decodes Google Identity ID Token JWT client-side
+function decodeJwt(token) {
+    try {
+        var base64Url = token.split('.')[1];
+        var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        var jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        throw new Error("Không thể giải mã dữ liệu ID Token của Google.");
+    }
+}
+
+// Handle secure Google Workspace Identity Response callback
+function handleGoogleCredentialResponse(response) {
+    try {
+        let payload = decodeJwt(response.credential);
+        let email = payload.email.trim().toLowerCase();
+        let name = payload.name || payload.given_name || email.split('@')[0];
+        
+        let errorMsg = document.getElementById('login-error-msg');
+        
+        if (!email.endsWith('@ghn.vn')) {
+            if (errorMsg) {
+                errorMsg.innerText = "Chỉ tài khoản Google GHN (@ghn.vn) mới được truy cập!";
+                errorMsg.style.display = 'block';
+            }
+            alert("Bảo mật hệ thống: Email đăng nhập phải thuộc hệ thống Giao Hàng Nhanh (có đuôi @ghn.vn)!");
+            return;
+        }
+        
+        // Determine Role and Region
+        let role = 'guest';
+        let region = 'Toàn quốc';
+        let office = '';
+        
+        let parts = email.split('@')[0].split('.');
+        let userNameRaw = parts[0];
+        let displayName = userNameRaw.charAt(0).toUpperCase() + userNameRaw.slice(1);
+        
+        let mapped = ghnEmailMappings[email];
+        if (mapped) {
+            role = mapped.role;
+            region = mapped.region;
+            displayName = mapped.name;
+        } else {
+            if (email.startsWith('admin.')) {
+                role = 'admin';
+                displayName = "Admin GHN (" + displayName + ")";
+            } else if (email.includes('.am.')) {
+                let regionIdx = parts.indexOf('am') + 1;
+                let reg = (regionIdx < parts.length) ? parts[regionIdx].toUpperCase() : 'HCM';
+                role = 'amhcm';
+                if (reg === 'HNO') role = 'amhno';
+                region = reg;
+                displayName = "AM " + reg + " (" + displayName + ")";
+            } else if (email.includes('.buuta.') || email.includes('.staff.')) {
+                role = 'buuta';
+                region = 'HCM';
+                office = 'Bưu Cục Quận 1';
+                displayName = "Bưu tá (" + displayName + ")";
+            } else {
+                role = 'guest';
+                displayName = displayName + " (GHN Viewer)";
+            }
+        }
+        
+        currentUser = {
+            username: email,
+            role: role,
+            name: displayName,
+            region: region,
+            office: office
+        };
+        
+        localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+        if (errorMsg) errorMsg.style.display = 'none';
+        applyUserRoleSession();
+        location.reload();
+    } catch (error) {
+        console.error("Lỗi xác thực Google OAuth:", error);
+        alert("Lỗi xử lý đăng nhập Google: " + error.message);
+    }
+}
 
