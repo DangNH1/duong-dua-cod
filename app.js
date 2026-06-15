@@ -10631,6 +10631,25 @@ function commitImportedData() {
     modal.style.display = 'none';
 
     alert("Cập nhật dữ liệu từ file báo cáo hoàn tất!");
+
+    // Proactive Telegram Alert Trigger
+    let botToken = localStorage.getItem('cod_race_telegram_token') || '';
+    let chatId = localStorage.getItem('cod_race_telegram_chat_id') || '';
+    if (botToken && chatId) {
+        let lowRegions = (appData.regions || []).filter(r => r.TenVung !== 'Toàn quốc' && r.TyLeTuNop < 30.0);
+        let user = getActiveUser();
+        if (user && user.role.startsWith('am')) {
+            lowRegions = lowRegions.filter(r => r.TenVung === user.region);
+        }
+        if (lowRegions.length > 0) {
+            let regionNames = lowRegions.map(r => r.TenVung).join(', ');
+            setTimeout(() => {
+                if (confirm(`Phát hiện ${lowRegions.length} vùng có tỷ lệ tự nộp dưới 30% (${regionNames})! Bạn có muốn gửi cảnh báo Telegram tự động không?`)) {
+                    sendTelegramAlertsForLowRegions();
+                }
+            }, 150);
+        }
+    }
 }
 
 // Workflow 2: Automated AI Template Message Generator
@@ -11142,6 +11161,49 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
         applyUserRoleSession();
+
+        // Initialize and bind Telegram Automation settings
+        let tokenInput = document.getElementById('telegram-bot-token');
+        let chatIdInput = document.getElementById('telegram-chat-id');
+        if (tokenInput) {
+            tokenInput.value = localStorage.getItem('cod_race_telegram_token') || '';
+            tokenInput.addEventListener('input', (e) => {
+                localStorage.setItem('cod_race_telegram_token', e.target.value.trim());
+            });
+        }
+        if (chatIdInput) {
+            chatIdInput.value = localStorage.getItem('cod_race_telegram_chat_id') || '';
+            chatIdInput.addEventListener('input', (e) => {
+                localStorage.setItem('cod_race_telegram_chat_id', e.target.value.trim());
+            });
+        }
+
+        let sendTelegramBtn = document.getElementById('send-telegram-alert-btn');
+        if (sendTelegramBtn) {
+            sendTelegramBtn.onclick = async () => {
+                let currentTokenInput = document.getElementById('telegram-bot-token');
+                let currentChatIdInput = document.getElementById('telegram-chat-id');
+                if (currentTokenInput) {
+                    localStorage.setItem('cod_race_telegram_token', currentTokenInput.value.trim());
+                }
+                if (currentChatIdInput) {
+                    localStorage.setItem('cod_race_telegram_chat_id', currentChatIdInput.value.trim());
+                }
+                
+                sendTelegramBtn.disabled = true;
+                let originalText = sendTelegramBtn.innerHTML;
+                sendTelegramBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gửi...';
+                try {
+                    await sendTelegramAlertsForLowRegions();
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    sendTelegramBtn.disabled = false;
+                    sendTelegramBtn.innerHTML = originalText;
+                }
+            };
+        }
+
         setupEvents();
     } catch (e) {
         console.error("DOM Ready initialization failed:", e);
@@ -11302,6 +11364,68 @@ function handleGoogleCredentialResponse(response) {
     } catch (error) {
         console.error("Lỗi xác thực Google OAuth:", error);
         alert("Lỗi xử lý đăng nhập Google: " + error.message);
+    }
+}
+
+// Workflow 3: Send Telegram alerts for regions under 30% directly via Telegram API
+async function sendTelegramAlertsForLowRegions() {
+    let regions = appData.regions || [];
+    let tokenInput = document.getElementById('telegram-bot-token');
+    let chatIdInput = document.getElementById('telegram-chat-id');
+    
+    let botToken = tokenInput ? tokenInput.value.trim() : (localStorage.getItem('cod_race_telegram_token') || '');
+    let chatId = chatIdInput ? chatIdInput.value.trim() : (localStorage.getItem('cod_race_telegram_chat_id') || '');
+    
+    if (!botToken || !chatId) {
+        alert("Vui lòng thiết lập đầy đủ Telegram Bot Token và Chat ID trong phần tự động hóa cảnh báo Telegram trước!");
+        return;
+    }
+
+    let user = getActiveUser();
+    let lowRegions = regions.filter(r => r.TenVung !== 'Toàn quốc' && r.TyLeTuNop < 30.0);
+    if (user && user.role.startsWith('am')) {
+        lowRegions = lowRegions.filter(r => r.TenVung === user.region);
+    }
+
+    if (lowRegions.length === 0) {
+        alert("Hiện không có Vùng nào có tỷ lệ tự nộp dưới 30% trên hệ thống.");
+        return;
+    }
+
+    let dateStr = appData.selectedDate || 'Hôm nay';
+    let messageText = `<b>[ĐƯỜNG ĐUA COD - CẢNH BÁO TỰ NỘP]</b>\n`;
+    messageText += `📅 Ngày báo cáo: <b>${dateStr}</b>\n`;
+    messageText += `⚠️ <b>Danh sách các Vùng có tỷ lệ tự nộp dưới 30%</b>:\n\n`;
+
+    lowRegions.forEach((r, idx) => {
+        let unsubmitted = Math.round((r.TongCOD - r.CODTuNop) * 100) / 100;
+        messageText += `${idx + 1}. Vùng <b>${r.TenVung.toUpperCase()}</b>: Tỷ lệ tự nộp <b>${r.TyLeTuNop}%</b> (Còn tồn chưa nộp: <b>${unsubmitted}M VNĐ</b>)\n`;
+    });
+    
+    messageText += `\n<i>Yêu cầu Trưởng vùng (AM) lập tức đôn đốc bưu cục trực thuộc hoàn thành việc tự nộp COD!</i>`;
+
+    try {
+        let url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        let res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: messageText,
+                parse_mode: 'HTML'
+            })
+        });
+        
+        let resData = await res.json();
+        if (resData.ok) {
+            alert(`Đã gửi cảnh báo trực tiếp thành công tới Telegram!\nDanh sách gồm ${lowRegions.length} vùng.`);
+        } else {
+            console.error("Telegram API Error:", resData);
+            alert(`Gửi Telegram thất bại: ${resData.description || "Lỗi không xác định"}`);
+        }
+    } catch (e) {
+        console.error("Gửi Telegram lỗi kết nối:", e);
+        alert(`Không thể kết nối tới Telegram API: ${e.message}`);
     }
 }
 
