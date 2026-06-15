@@ -546,19 +546,20 @@
                 Đường Đua Tự Nộp COD - Cổng xác thực Google GHN nội bộ
             </p>
 
-            <form id="google-login-form" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+            <form id="login-email-form" style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
                 <div style="display: flex; flex-direction: column; gap: 0.35rem; text-align: left;">
-                    <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Nhập Email GHN của bạn</label>
-                    <div style="display: flex; align-items: center; background: #080c14; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; padding-right: 0.75rem;">
-                        <input id="google-login-email-input" type="text" placeholder="haidang.am.hcm" style="flex: 1; padding: 0.55rem 0.85rem; border: none; background: transparent; color: var(--text-primary); outline: none; font-size: 0.875rem;" required>
-                        <span style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 600;">@ghn.vn</span>
-                    </div>
+                    <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Email Google GHN (@ghn.vn)</label>
+                    <input id="login-email" type="text" placeholder="haidang.am.hcm@ghn.vn hoặc dangnh@ghn.vn" style="width: 100%; padding: 0.55rem 0.85rem; border-radius: 8px; border: 1px solid var(--border-color); background: #080c14; color: var(--text-primary); outline: none; font-size: 0.875rem;" required>
                 </div>
-                <div id="google-login-main-error" style="color: var(--color-red); font-size: 0.75rem; text-align: left; display: none; margin-top: 0.25rem;">
-                    <i class="fas fa-triangle-exclamation"></i> Vui lòng nhập đúng email có đuôi @ghn.vn!
+                <div style="display: flex; flex-direction: column; gap: 0.35rem; text-align: left;">
+                    <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">Mật Khẩu</label>
+                    <input id="login-password" type="password" placeholder="Mật khẩu của bạn" style="width: 100%; padding: 0.55rem 0.85rem; border-radius: 8px; border: 1px solid var(--border-color); background: #080c14; color: var(--text-primary); outline: none; font-size: 0.875rem;" required>
                 </div>
-                <button type="submit" class="btn" style="width: 100%; justify-content: center; padding: 0.65rem; font-size: 0.875rem; background: #ffffff; color: #1f2937; border: none; font-weight: 700; gap: 0.5rem; display: flex; align-items: center; transition: background 0.2s; margin-top: 0.5rem;">
-                    Tiếp tục
+                <div id="login-error-msg" style="color: var(--color-red); font-size: 0.75rem; text-align: left; display: none; margin-top: 0.25rem;">
+                    <i class="fas fa-triangle-exclamation"></i> Sai email hoặc mật khẩu!
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.65rem; font-size: 0.875rem; margin-top: 0.5rem;">
+                    Đăng Nhập
                 </button>
             </form>
 
@@ -567,25 +568,25 @@
                     <i class="fas fa-magic"></i> DÙNG THỬ NHANH (CHO MENTOR)
                 </h4>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                    <button type="button" class="btn google-quick-btn-main" data-email="haidang.am.hcm@ghn.vn" style="grid-column: span 2; font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; border: 1px dashed var(--color-cyan);">
-                        <span style="font-weight: 700; color: var(--color-cyan);">🔑 AM Hải Đăng (haidang.am.hcm@ghn.vn)</span>
-                        <span style="font-size: 0.6rem; color: var(--text-muted);">Tài khoản AM Vùng HCM cá nhân của bạn</span>
+                    <button type="button" class="btn google-quick-btn-main" data-email="dangnh@ghn.vn" data-password="haiDang1" style="grid-column: span 2; font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; border: 1px dashed var(--color-cyan);">
+                        <span style="font-weight: 700; color: var(--color-cyan);">🔑 Nguyễn Hải Đăng (dangnh@ghn.vn)</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted);">Mật khẩu: haiDang1 (AM Vùng HCM/Admin)</span>
                     </button>
-                    <button type="button" class="btn google-quick-btn-main" data-email="admin@ghn.vn" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+                    <button type="button" class="btn google-quick-btn-main" data-email="admin@ghn.vn" data-password="admin123" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
                         <span style="font-weight: 700; color: var(--text-primary);">🔑 Admin</span>
-                        <span style="font-size: 0.6rem; color: var(--text-muted);">admin@ghn.vn (Toàn quốc)</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted);">Mật khẩu: admin123</span>
                     </button>
-                    <button type="button" class="btn google-quick-btn-main" data-email="huan.am.hno@ghn.vn" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+                    <button type="button" class="btn google-quick-btn-main" data-email="huan.am.hno@ghn.vn" data-password="am123" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
                         <span style="font-weight: 700; color: var(--text-primary);">🔑 AM HNO</span>
-                        <span style="font-size: 0.6rem; color: var(--text-muted);">huan.am.hno@ghn.vn</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted);">Mật khẩu: am123</span>
                     </button>
-                    <button type="button" class="btn google-quick-btn-main" data-email="minh.buuta.q1@ghn.vn" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+                    <button type="button" class="btn google-quick-btn-main" data-email="minh.buuta.q1@ghn.vn" data-password="staff123" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
                         <span style="font-weight: 700; color: var(--text-primary);">🔑 Bưu tá Q1</span>
-                        <span style="font-size: 0.6rem; color: var(--text-muted);">minh.buuta.q1@ghn.vn (Staff)</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted);">Mật khẩu: staff123</span>
                     </button>
-                    <button type="button" class="btn google-quick-btn-main" data-email="guest@ghn.vn" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+                    <button type="button" class="btn google-quick-btn-main" data-email="guest@ghn.vn" data-password="guest123" style="font-size: 0.7rem; padding: 0.4rem; text-align: left; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
                         <span style="font-weight: 700; color: var(--text-primary);">🔑 Viewer</span>
-                        <span style="font-size: 0.6rem; color: var(--text-muted);">guest@ghn.vn (Chỉ xem)</span>
+                        <span style="font-size: 0.6rem; color: var(--text-muted);">Mật khẩu: guest123</span>
                     </button>
                 </div>
             </div>

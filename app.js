@@ -9349,12 +9349,22 @@ async function sha256(message) {
 
 // Mock User Database (Week 3 Security) - Storing hashed passwords instead of plaintext
 const mockUsers = {
-    "1017": { username: "1017", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "amhcm", name: "Nguyễn Hải Đăng", region: "HCM" },
-    "admin": { username: "admin", passwordHash: "240eb51856134e7a177b2d47b59e4bb1ec148b6c161973e488d3eec9d3000676", role: "admin", name: "Trần Thế Anh", region: "Toàn quốc" },
-    "amhcm": { username: "amhcm", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhcm", name: "Nguyễn Văn Hùng", region: "HCM" },
-    "amhno": { username: "amhno", passwordHash: "6f9c6d3283289069d511af41cb5fb38c353b1b369cc72f7be6adfe00d27c62ad", role: "amhno", name: "Phạm Minh Hoàng", region: "HNO" },
-    "buuta": { username: "buuta", passwordHash: "f7d754b2cf0686940c310fb4e297805d2c88f763c32e92ec4eb0429188849b29", role: "buuta", name: "Lê Văn Tiến", region: "HCM", office: "Bưu Cục Quận 1" },
-    "guest": { username: "guest", passwordHash: "84bb87d8961726a5704d9c75567b545d61991866cf01826cf8d5de863e414c1d", role: "guest", name: "Người Xem Thử Nghiệm", region: "Toàn quốc" }
+    // Legacy / Internal IDs
+    "1017": { username: "dangnh@ghn.vn", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "admin", name: "Nguyễn Hải Đăng", region: "Toàn quốc" },
+    "admin": { username: "admin@ghn.vn", passwordHash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", role: "admin", name: "Trần Thế Anh", region: "Toàn quốc" },
+    "amhcm": { username: "haidang.am.hcm@ghn.vn", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "amhcm", name: "Nguyễn Hải Đăng", region: "HCM" },
+    "amhno": { username: "huan.am.hno@ghn.vn", passwordHash: "d19770299af91cbf4250e724a9010f14abee38ea19078b4c113a34972f923e33", role: "amhno", name: "Phạm Minh Hoàng", region: "HNO" },
+    "buuta": { username: "minh.buuta.q1@ghn.vn", passwordHash: "10176e7b7b24d317acfcf8d2064cfd2f24e154f7b5a96603077d5ef813d6a6b6", role: "buuta", name: "Lê Văn Tiến", region: "HCM", office: "Bưu Cục Quận 1" },
+    "guest": { username: "guest@ghn.vn", passwordHash: "6b93ccba414ac1d0ae1e77f3fac560c748a6701ed6946735a49d463351518e16", role: "guest", name: "Người Xem Thử Nghiệm", region: "Toàn quốc" },
+    
+    // Corporate Email mappings (@ghn.vn)
+    "dangnh@ghn.vn": { username: "dangnh@ghn.vn", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "admin", name: "Nguyễn Hải Đăng", region: "Toàn quốc" },
+    "haidang@ghn.vn": { username: "haidang@ghn.vn", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "admin", name: "Nguyễn Hải Đăng", region: "Toàn quốc" },
+    "haidang.am.hcm@ghn.vn": { username: "haidang.am.hcm@ghn.vn", passwordHash: "42a4db8ecc33557c669f1d569c84afeaf64563d7b9d1f93d32433cd25160b2de", role: "amhcm", name: "Nguyễn Hải Đăng (AM HCM)", region: "HCM" },
+    "admin@ghn.vn": { username: "admin@ghn.vn", passwordHash: "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", role: "admin", name: "Admin Nguyễn Hải Đăng", region: "Toàn quốc" },
+    "huan.am.hno@ghn.vn": { username: "huan.am.hno@ghn.vn", passwordHash: "d19770299af91cbf4250e724a9010f14abee38ea19078b4c113a34972f923e33", role: "amhno", name: "Phạm Minh Hoàng (AM HNO)", region: "HNO" },
+    "minh.buuta.q1@ghn.vn": { username: "minh.buuta.q1@ghn.vn", passwordHash: "10176e7b7b24d317acfcf8d2064cfd2f24e154f7b5a96603077d5ef813d6a6b6", role: "buuta", name: "Lê Văn Tiến (Bưu tá Q1)", region: "HCM", office: "Bưu Cục Quận 1" },
+    "guest@ghn.vn": { username: "guest@ghn.vn", passwordHash: "6b93ccba414ac1d0ae1e77f3fac560c748a6701ed6946735a49d463351518e16", role: "guest", name: "Người Xem Thử Nghiệm", region: "Toàn quốc" }
 };
 
 let currentUser = null;
@@ -10851,23 +10861,33 @@ function parseDateStr(str) {
 window.addEventListener('DOMContentLoaded', () => {
     initData();
     
-    // Bind Google SSO Login Form
-    let googleLoginForm = document.getElementById('google-login-form');
-    if (googleLoginForm) {
-        googleLoginForm.addEventListener('submit', (e) => {
+    // Bind Secure Email & Password Login Form
+    let loginEmailForm = document.getElementById('login-email-form');
+    if (loginEmailForm) {
+        loginEmailForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            let emailUser = document.getElementById('google-login-email-input').value.trim();
-            if (!emailUser) return;
+            let email = document.getElementById('login-email').value.trim();
+            let password = document.getElementById('login-password').value;
+            let errorMsg = document.getElementById('login-error-msg');
             
-            let fullEmail = emailUser;
-            if (!fullEmail.includes('@')) {
-                fullEmail = emailUser + '@ghn.vn';
+            if (!email.endsWith('@ghn.vn')) {
+                alert("Bảo mật hệ thống: Email đăng nhập phải thuộc hệ thống Giao Hàng Nhanh (có đuôi @ghn.vn)!");
+                if (errorMsg) {
+                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Email phải có đuôi @ghn.vn!';
+                    errorMsg.style.display = 'block';
+                }
+                return;
             }
             
-            if (handleGoogleLogin(fullEmail)) {
-                document.getElementById('google-login-main-error').style.display = 'none';
+            let success = await handleLogin(email, password);
+            if (success) {
+                if (errorMsg) errorMsg.style.display = 'none';
+                location.reload();
             } else {
-                document.getElementById('google-login-main-error').style.display = 'block';
+                if (errorMsg) {
+                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sai email hoặc mật khẩu!';
+                    errorMsg.style.display = 'block';
+                }
             }
         });
     }
@@ -10875,14 +10895,27 @@ window.addEventListener('DOMContentLoaded', () => {
     // Bind logout button
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
-    // Bind demo/mentor switcher buttons (Google SSO formatted)
+    // Bind demo/mentor switcher buttons
     document.querySelectorAll('.google-quick-btn-main').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = async () => {
             let email = btn.getAttribute('data-email');
-            if (email.endsWith('@ghn.vn')) {
-                handleGoogleLogin(email);
+            let password = btn.getAttribute('data-password');
+            
+            let emailInput = document.getElementById('login-email');
+            let passwordInput = document.getElementById('login-password');
+            if (emailInput) emailInput.value = email;
+            if (passwordInput) passwordInput.value = password;
+            
+            let errorMsg = document.getElementById('login-error-msg');
+            let success = await handleLogin(email, password);
+            if (success) {
+                if (errorMsg) errorMsg.style.display = 'none';
+                location.reload();
             } else {
-                alert("Bảo mật hệ thống: Yêu cầu đăng nhập bằng email @ghn.vn!");
+                if (errorMsg) {
+                    errorMsg.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sai email hoặc mật khẩu!';
+                    errorMsg.style.display = 'block';
+                }
             }
         };
     });
@@ -10890,15 +10923,13 @@ window.addEventListener('DOMContentLoaded', () => {
     // Bind quick role select list in header
     document.getElementById('quick-role-select').addEventListener('change', (e) => {
         let val = e.target.value;
-        if (val.includes('@')) {
+        let user = mockUsers[val];
+        if (user) {
+            currentUser = user;
+            localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
+            location.reload();
+        } else if (val.includes('@')) {
             handleGoogleLogin(val);
-        } else {
-            let user = mockUsers[val];
-            if (user) {
-                currentUser = user;
-                localStorage.setItem('cod_race_user', JSON.stringify(currentUser));
-                location.reload();
-            }
         }
     });
 
